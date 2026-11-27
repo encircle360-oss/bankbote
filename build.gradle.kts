@@ -3,7 +3,7 @@ import org.springframework.boot.gradle.plugin.SpringBootPlugin
 plugins {
     java
     jacoco
-    id("org.springframework.boot") version "4.1.3"
+    id("org.springframework.boot") version "4.2.0"
     id("org.graalvm.buildtools.native") version "1.1.19"
     id("com.diffplug.spotless") version "8.11.0"
 }
