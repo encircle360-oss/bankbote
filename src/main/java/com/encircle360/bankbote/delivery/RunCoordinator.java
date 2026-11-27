@@ -19,6 +19,8 @@ import org.slf4j.LoggerFactory;
  * Starts runs, one at a time. Runs execute on a single thread, so two never overlap; while one
  * runs, at most one more waits, and every further request until it starts joins that one.
  *
+ * <p>A run that cannot read the source is repeated once after the notification delay.
+ *
  * <p>Hibiscus Server notifies once per account and before it has stored the transactions of that
  * synchronisation, so a notification starts a run only after a delay, and all notifications within
  * the delay start the same run.
@@ -43,6 +45,7 @@ public final class RunCoordinator implements AutoCloseable {
   private final AtomicBoolean notifyPending = new AtomicBoolean();
   private final AtomicBoolean backfillDone = new AtomicBoolean();
   private final AtomicBoolean closed = new AtomicBoolean();
+  private final AtomicBoolean retried = new AtomicBoolean();
   private volatile boolean running;
   private volatile RunReport last;
 
@@ -133,6 +136,23 @@ public final class RunCoordinator implements AutoCloseable {
     } finally {
       running = false;
     }
+    if (report.sourceError() == null) {
+      retried.set(false);
+    } else if (!retried.getAndSet(true)) {
+      retryLater();
+    }
+  }
+
+  /**
+   * Hibiscus Server answers its JSON beans with HTTP 500 for a moment after its start, before it
+   * has registered them; a run that could not read the source is therefore repeated once after the
+   * notification delay, and again only after a run has succeeded.
+   */
+  private void retryLater() {
+    if (closed.get()) {
+      return;
+    }
+    timer.schedule(this::requestRun, notifyDelay.toMillis(), TimeUnit.MILLISECONDS);
   }
 
   @Override

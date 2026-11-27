@@ -212,4 +212,23 @@ class RunCoordinatorTest {
     assertThat(next().successful()).isTrue();
     assertThat(calls).hasValue(3);
   }
+
+  @Test
+  void aClosedCoordinatorRetriesNothing() throws InterruptedException {
+    AtomicInteger calls = new AtomicInteger();
+    coordinator(
+        from -> {
+          calls.incrementAndGet();
+          coordinator.close();
+          return sourceFailed(from);
+        },
+        null,
+        Duration.ZERO);
+
+    coordinator.requestRun();
+
+    assertThat(next().successful()).isFalse();
+    assertThat(reports.poll(300, TimeUnit.MILLISECONDS)).isNull();
+    assertThat(calls).hasValue(1);
+  }
 }
