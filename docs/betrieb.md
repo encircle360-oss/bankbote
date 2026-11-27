@@ -60,6 +60,7 @@ Erzeugt Jameica ein neues Zertifikat, etwa auf einem neuen Volume, verweigert Ba
 
 - Das Web-Admin von Jameica muss laufen, mit HTTPS und Anmeldung, wie vorgegeben (`listener.http.ssl=true`, `listener.http.auth=true`). Bankbote liest die JSON-Beans unter `/webadmin/rest/hibiscus/…`.
 - `json.indent` größer als 0 lassen (Vorgabe 2), damit der Server `application/json` sendet; er sendet ihn ohne `charset`, schreibt aber UTF-8, und so liest Bankbote ihn. Ohne Inhaltstyp liest Bankbote die Antwort als ISO-8859-1.
+- Direkt nach dem Start antwortet der Server für einen Moment mit HTTP 500, weil er die JSON-Beans erst nach dem Webserver registriert. Startet Bankbote zusammen mit ihm, kann der erste Lauf daran scheitern; Bankbote wiederholt einen Lauf, der die Quelle nicht lesen konnte, einmal nach `bankbote.notify-delay`.
 - Der Benutzername ist beliebig, darf aber nicht leer sein; mit leerem Namen antwortet der Server 401, und Bankbote startet mit leerem `bankbote.hibiscus.username` gar nicht.
 - **Benachrichtigung:** In den Einstellungen des Payment-Servers die Benachrichtigungs-URL (`notify.url`) auf `http://127.0.0.1:8089/notify` setzen. Sie kommt je Konto nach dem Saldenabruf; ist „Saldo synchronisieren“ für ein Konto aus, kommt sie nicht, und der Zeitplan holt dessen Umsätze. Einzelheiten unter [Hibiscus Server](hibiscus.md#die-benachrichtigung-notifyurl).
 - Vorgemerkte Umsätze darf der Server abrufen oder nicht (`umsatz.fetchnotbooked`, beim Payment-Server vorgegeben `false`); Bankbote liefert sie nie.

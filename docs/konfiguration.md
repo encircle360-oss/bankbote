@@ -34,7 +34,7 @@ Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer
 | `bankbote.backfill-from` | – | erster Buchungstag des ersten Laufs nach dem Start, `JJJJ-MM-TT`, nicht in der Zukunft. Danach gilt wieder `lookback-days`. Siehe [Nachholen](betrieb.md#nachholen) |
 | `bankbote.time-zone` | `Europe/Berlin` | Zeitzone, die bestimmt, welcher Tag heute ist, für Fenster und Zeitplan |
 | `bankbote.schedule` | `0 0 * * * *` | Zeitplan als Cron-Ausdruck von Spring (Sekunde, Minute, Stunde, Tag, Monat, Wochentag), `-` für keinen |
-| `bankbote.notify-delay` | `60s` | Wartezeit nach einer Benachrichtigung des Hibiscus Servers, nicht negativ |
+| `bankbote.notify-delay` | `60s` | Wartezeit nach einer Benachrichtigung des Hibiscus Servers und vor der einmaligen Wiederholung eines Laufs, der die Quelle nicht lesen konnte; nicht negativ |
 
 ## Hibiscus Server
 
