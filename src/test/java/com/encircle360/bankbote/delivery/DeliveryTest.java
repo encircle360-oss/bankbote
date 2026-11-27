@@ -242,27 +242,44 @@ class DeliveryTest {
   }
 
   @Test
-  void submitsADraftLeftByACrashBetweenInsertAndSubmitInsteadOfInsertingAgain() {
+  void reportsADraftThatHoldsTheTransactionIdAndNeitherSubmitsNorDuplicatesIt() {
     FakeErpNext a =
         erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
-    source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
+    source
+        .account("1", A1)
+        .booked("1", "11", "2026-11-20", "1.00")
+        .booked("1", "12", "2026-11-21", "2.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-    assertThat(a.transactions()).hasSize(1);
-    assertThat(a.transactions().getFirst().get("docstatus").asInt()).isEqualTo(1);
-    assertThat(account(report, "a", A1).delivered()).isEqualTo(1);
+    assertThat(ids(a)).containsExactlyInAnyOrder("hibiscus:11", "hibiscus:12");
+    assertThat(a.transactions().getFirst().get("docstatus").asInt()).isZero();
+    assertThat(a.requests()).noneMatch(request -> request.method().equals("PUT"));
+    assertThat(account(report, "a", A1))
+        .isEqualTo(
+            new AccountReport(
+                "DE17…0001",
+                2,
+                1,
+                0,
+                0,
+                1,
+                "ERPNext a holds hibiscus:11 as a draft; submit or delete it there"));
+    assertThat(report.targets().getFirst().error()).isNull();
   }
 
   @Test
-  void submitsADocumentThatERPNextKeptAsDraftOnInsert() {
+  void reportsANewTransactionThatERPNextKeptAsDraftWithoutSubmittingIt() {
     FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).insertAsDraft();
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-    assertThat(a.transactions().getFirst().get("docstatus").asInt()).isEqualTo(1);
-    assertThat(account(report, "a", A1).delivered()).isEqualTo(1);
+    assertThat(a.transactions().getFirst().get("docstatus").asInt()).isZero();
+    assertThat(a.requests()).noneMatch(request -> request.method().equals("PUT"));
+    assertThat(account(report, "a", A1).failed()).isEqualTo(1);
+    assertThat(account(report, "a", A1).error())
+        .isEqualTo("ERPNext a kept hibiscus:11 as a draft; submit or delete it there");
   }
 
   @Test
@@ -527,20 +544,6 @@ class DeliveryTest {
     assertThat(a.transactions())
         .extracting(doc -> doc.get("docstatus").asInt())
         .containsExactly(1, 0);
-  }
-
-  @Test
-  void aSubmitThatFailsCountsAsFailed() {
-    FakeErpNext a =
-        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
-    a.override(request -> request.method().equals("PUT") ? Response.json(417, "{}") : null);
-    source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
-
-    RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
-
-    assertThat(account(report, "a", A1).failed()).isEqualTo(1);
-    assertThat(account(report, "a", A1).error())
-        .isEqualTo("ERPNext a rejected the request (HTTP 417)");
   }
 
   @Test
