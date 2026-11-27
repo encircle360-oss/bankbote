@@ -7,4 +7,3 @@ ${AnsiColor.BRIGHT_BLUE}    ____              __   __          __
 
  Bank transactions from Hibiscus Server into ERPNext${application.formatted-version}
  Open source by encircle360 GmbH - https://github.com/encircle360-oss/bankbote
-
