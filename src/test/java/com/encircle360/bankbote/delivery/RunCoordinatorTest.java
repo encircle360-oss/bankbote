@@ -168,4 +168,48 @@ class RunCoordinatorTest {
     coordinator.notified();
     assertThat(coordinator.running()).isFalse();
   }
+
+  private static RunReport sourceFailed(LocalDate from) {
+    return new RunReport(
+        CLOCK.instant(),
+        CLOCK.instant(),
+        from,
+        "Hibiscus Server answered HTTP 500",
+        List.of(),
+        List.of());
+  }
+
+  @Test
+  void aRunThatCannotReadTheSourceIsRepeatedOnceAfterTheDelay() throws InterruptedException {
+    AtomicInteger calls = new AtomicInteger();
+    coordinator(
+        from -> calls.incrementAndGet() == 1 ? sourceFailed(from) : report(from),
+        null,
+        Duration.ofMillis(300));
+
+    long start = System.nanoTime();
+    coordinator.requestRun();
+
+    assertThat(next().sourceError()).isEqualTo("Hibiscus Server answered HTTP 500");
+    assertThat(next().successful()).isTrue();
+    assertThat(System.nanoTime() - start).isGreaterThanOrEqualTo(Duration.ofMillis(300).toNanos());
+    assertThat(reports.poll(800, TimeUnit.MILLISECONDS)).isNull();
+  }
+
+  @Test
+  void aSourceThatStaysUnreadableIsRetriedOnlyOnceUntilARunSucceeds() throws InterruptedException {
+    AtomicInteger calls = new AtomicInteger();
+    coordinator(
+        from -> calls.incrementAndGet() == 3 ? report(from) : sourceFailed(from),
+        null,
+        Duration.ofMillis(100));
+
+    coordinator.requestRun();
+    next();
+    next();
+    assertThat(reports.poll(600, TimeUnit.MILLISECONDS)).isNull();
+    coordinator.requestRun();
+    assertThat(next().successful()).isTrue();
+    assertThat(calls).hasValue(3);
+  }
 }
