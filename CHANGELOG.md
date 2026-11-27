@@ -19,7 +19,7 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ### Geändert
 
-- Ein Lauf, der die Quelle nicht lesen konnte, wird einmal nach `bankbote.notify-delay` wiederholt. Hibiscus Server antwortet seine JSON-Beans direkt nach dem Start für einen Moment mit HTTP 500; ein gemeinsam gestartetes Bankbote müsste sonst bis zum nächsten Zeitplan warten.
+- Ein Lauf, der die Quelle nicht lesen konnte, wird einmal nach `bankbote.notify-delay` wiederholt. Hibiscus Server lehnt direkt nach dem Start erst Verbindungen ab, schließt dann den TLS-Handshake und antwortet seine JSON-Beans für einen Moment mit HTTP 500; alle drei gelten als Quelle, die noch nicht lesbar ist; ein gemeinsam gestartetes Bankbote müsste sonst bis zum nächsten Zeitplan warten.
 - Bankbote startet nicht mehr mit leerem `bankbote.hibiscus.username`: Hibiscus Server lehnt einen leeren Benutzernamen mit 401 ab, wie ein falsches Passwort.
 
 ### Behoben
