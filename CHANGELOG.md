@@ -6,6 +6,7 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ### Hinzugefügt
 
+- Start-Banner: Bankbote meldet sich beim Start mit seinem Namen, der Adresse des Projekts und der encircle360 GmbH als Herausgeberin; der Smoke-Test prüft, dass der Banner auch im nativen Image steckt.
 - Integrationstests gegen ein laufendes ERPNext 16.61 aus dem Image von erpnext_germanized mit MariaDB und Redis (`./gradlew erpnextTest`), mit zwei erfundenen Unternehmen und dem Dienstbenutzer mit genau der dokumentierten Rolle, und ein Test der ganzen Kette vom laufenden Hibiscus Server über Bankbote in das laufende ERPNext. Bestätigt sind `transaction_id` beim Anlegen, Einreichen in einer Anfrage, das Unternehmen aus dem Bankkonto, Filter, Seiten, Beträge von 0, Feldlängen, Umlaute und dass die Rolle für alles genügt außer für Entwürfe. Ergebnisse unter [Betrieb](docs/betrieb.md#der-dienstbenutzer-in-erpnext).
 - Integrationstests gegen einen laufenden Hibiscus Server 2.12.4 mit MariaDB 11.8 in Containern (`./gradlew hibiscusTest`), mit erfundenen Konten und Umsätzen in der Datenbank des Servers. Sie bestätigen Anmeldung, Kontenliste, Datum, Beträge auch in Exponentenschreibweise, das Kennzeichen „vorgemerkt“, Umlaute und Eurozeichen, Inhaltstyp, Fenster, Reihenfolge und das Fehlen einer Grenze; der ganze Dienst läuft gegen den Server und zwei nachgebaute ERPNext. Die Suite läuft in jedem Pull Request. Ergebnisse unter [Hibiscus Server](docs/hibiscus.md#gegen-einen-laufenden-server-geprüft).
 
