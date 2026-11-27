@@ -102,7 +102,17 @@ graalvmNative {
     binaries {
         named("main") {
             imageName = "bankbote"
-            buildArgs.addAll(listOf("--no-fallback", "-H:+ReportExceptionStackTraces"))
+            // Everything but glibc is linked into the binary, which the distroless base provides.
+            // The charsets cover what a Hibiscus Server may name in its content type.
+            buildArgs.addAll(
+                listOf(
+                    "--no-fallback",
+                    "--static-nolibc",
+                    "--enable-url-protocols=http,https",
+                    "-H:+AddAllCharsets",
+                    "-H:+ReportExceptionStackTraces",
+                ),
+            )
         }
     }
     // The metadata repository holds reachability metadata for third-party libraries; Spring's AOT processing
