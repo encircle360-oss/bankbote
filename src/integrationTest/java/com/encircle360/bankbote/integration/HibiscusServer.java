@@ -120,7 +120,7 @@ public final class HibiscusServer implements AutoCloseable {
     }
     HibiscusServer started =
         new HibiscusServer(network, database, server, masterPassword, databasePassword);
-    started.awaitRestBeans(Duration.ofSeconds(60));
+    started.awaitRestBeans(Duration.ofMinutes(3));
     return started;
   }
 
@@ -143,29 +143,23 @@ public final class HibiscusServer implements AutoCloseable {
         "Basic "
             + Base64.getEncoder()
                 .encodeToString(("admin:" + masterPassword).getBytes(StandardCharsets.UTF_8));
-    long deadline = System.nanoTime() + timeout.toNanos();
-    try (HttpClient http = HttpClient.newBuilder().sslContext(pinned).build()) {
-      while (true) {
-        HttpResponse<Void> response =
-            http.send(
-                HttpRequest.newBuilder(url().resolve("/webadmin/rest/hibiscus/konto/list"))
-                    .header("Authorization", authorization)
-                    .build(),
-                HttpResponse.BodyHandlers.discarding());
-        if (response.statusCode() == 200) {
-          return;
-        }
-        if (System.nanoTime() > deadline) {
-          throw new IllegalStateException(
-              "the JSON beans still answer HTTP " + response.statusCode() + " after " + timeout);
-        }
-        Thread.sleep(100);
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+    HttpRequest request =
+        HttpRequest.newBuilder(url().resolve("/webadmin/rest/hibiscus/konto/list"))
+            .header("Authorization", authorization)
+            .timeout(Duration.ofSeconds(5))
+            .build();
+    try (HttpClient http =
+        HttpClient.newBuilder().sslContext(pinned).connectTimeout(Duration.ofSeconds(5)).build()) {
+      Readiness.await(
+          () -> http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode(),
+          timeout,
+          Duration.ofMillis(250));
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(e);
+    } catch (IllegalStateException e) {
+      throw new IllegalStateException(
+          e.getMessage() + "\n--- last 120 lines of /data/jameica.log ---\n" + jameicaLog(120), e);
     }
   }
 
