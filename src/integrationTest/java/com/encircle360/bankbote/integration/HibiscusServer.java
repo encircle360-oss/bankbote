@@ -34,7 +34,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
  * started the way an operator runs it: read-only root file system, no capabilities, the master
  * password and the password of the database in files. Both passwords are generated for each start.
  */
-public final class HibiscusServer implements AutoCloseable {
+public final class HibiscusServer implements AutoCloseable, LogSource {
 
   /** The name the server puts into the certificate it makes at its first start. */
   public static final String CERTIFICATE_HOSTNAME = "hibiscus.example.com";
@@ -158,8 +158,7 @@ public final class HibiscusServer implements AutoCloseable {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(e);
     } catch (IllegalStateException e) {
-      throw new IllegalStateException(
-          e.getMessage() + "\n--- last 120 lines of /data/jameica.log ---\n" + jameicaLog(120), e);
+      throw new IllegalStateException(e.getMessage() + "\n" + excerpt(120), e);
     }
   }
 
@@ -243,6 +242,11 @@ public final class HibiscusServer implements AutoCloseable {
     } catch (GeneralSecurityException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  @Override
+  public String excerpt(int lines) {
+    return "--- last " + lines + " lines of /data/jameica.log ---\n" + jameicaLog(lines);
   }
 
   /** The log of the server on stdout so far. */

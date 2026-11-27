@@ -186,3 +186,9 @@ graalvmNative {
 tasks.named("processTestAot") {
     enabled = false
 }
+
+registerIntegrationTests(
+    "erpnextTest",
+    "erpnext",
+    "Runs Bankbote against a real ERPNext 16 with MariaDB and Redis in containers.",
+)
