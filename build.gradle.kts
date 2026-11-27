@@ -195,5 +195,5 @@ registerIntegrationTests(
     "erpnextTest",
     "erpnext",
     "Runs Bankbote against a real ERPNext 16 with MariaDB and Redis in containers.",
-    Duration.ofMinutes(30),
+    Duration.ofMinutes(20),
 )
