@@ -42,7 +42,7 @@ Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer
 |---|---|---|
 | `bankbote.hibiscus.url` | – | Basisadresse, etwa `https://127.0.0.1:8080`. Nur `https`, ohne Benutzer, Abfrage oder Fragment. Ein Pfad bleibt erhalten |
 | `bankbote.hibiscus.certificate` | – | PEM-Datei mit genau einem Zertifikat, dem des Servers. Bankbote vertraut nur ihm und prüft den Namen darin nicht |
-| `bankbote.hibiscus.username` | `admin` | Benutzername; der Hibiscus Server prüft nur das Passwort |
+| `bankbote.hibiscus.username` | `admin` | Benutzername; der Hibiscus Server nimmt jeden außer einem leeren und prüft nur das Passwort. Nicht leer |
 | `bankbote.hibiscus.password-file` | – | Datei mit dem Master-Passwort in einer Zeile; ein Zeilenende am Schluss wird ignoriert |
 | `bankbote.hibiscus.connect-timeout` | `10s` | Zeitlimit für den Verbindungsaufbau, positiv |
 | `bankbote.hibiscus.request-timeout` | `120s` | Zeitlimit für eine Antwort, positiv |

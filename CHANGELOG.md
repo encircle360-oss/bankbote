@@ -6,6 +6,8 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ### Hinzugefügt
 
+- Integrationstests gegen einen laufenden Hibiscus Server 2.12.4 mit MariaDB 11.8 in Containern (`./gradlew hibiscusTest`), mit erfundenen Konten und Umsätzen in der Datenbank des Servers. Sie bestätigen Anmeldung, Kontenliste, Datum, Beträge auch in Exponentenschreibweise, das Kennzeichen „vorgemerkt“, Umlaute und Eurozeichen, Inhaltstyp, Fenster, Reihenfolge und das Fehlen einer Grenze; der ganze Dienst läuft gegen den Server und zwei nachgebaute ERPNext. Die Suite läuft in jedem Pull Request. Ergebnisse unter [Hibiscus Server](docs/hibiscus.md#gegen-einen-laufenden-server-geprüft).
+
 - Erste Version von Bankbote: ein Dienst, der gebuchte Umsätze von einem Hibiscus Server liest und je Konto als eingereichte Bankumsätze (`Bank Transaction`) an das ERPNext 16 des Unternehmens liefert, dem das Konto gehört.
 - Hibiscus Server als Quelle über die JSON-Beans `hibiscus/konto/list` und `hibiscus/konto/<id>/umsaetze/days/<n>`, mit gepinntem Zertifikat und Master-Passwort aus einer Datei. Vorgemerkte Umsätze (`FLAG_NOTBOOKED`) werden erkannt und nie geliefert. Belege im Quelltext unter [Hibiscus Server](docs/hibiscus.md).
 - Mandantenfähig: beliebig viele Ziele mit eigener Adresse, eigenem API-Schlüssel und Geheimnis; jedes Konto per IBAN genau einem Ziel zugeordnet; ein Konto ohne Zuordnung geht nirgendwohin. Jedes Ziel läuft für sich; der Schlüssel eines Ziels geht nie an eine andere Adresse.
@@ -15,6 +17,14 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 - Prüfung der ganzen Konfiguration beim Start, mit allen Fehlern auf einmal.
 - Natives Image mit GraalVM im Container für `linux/amd64` und `linux/arm64`; vorbereiteter Release-Workflow mit SBOM und Provenienz.
 
+### Geändert
+
+- Bankbote startet nicht mehr mit leerem `bankbote.hibiscus.username`: Hibiscus Server lehnt einen leeren Benutzernamen mit 401 ab, wie ein falsches Passwort.
+
+### Behoben
+
+- Dokumentation: [Betrieb](docs/betrieb.md#das-zertifikat-des-hibiscus-servers) sagte, Web-Admin zeige den Fingerabdruck des Zertifikats. Das tut es nicht; das Zertifikat kommt jetzt aus dem Schlüsselspeicher des Servers, Eintrag `jameica`, mit dem Master-Passwort.
+
 ### Bekannte Grenzen
 
-- Noch nie gegen einen echten Hibiscus Server, eine echte Bank oder ein echtes ERPNext gelaufen; was davon abhängt, steht im [README](README.md#was-getestet-ist-und-was-nicht).
+- Noch nie gegen eine echte Bank oder ein echtes ERPNext gelaufen; was davon abhängt, steht im [README](README.md#was-getestet-ist-und-was-nicht).

@@ -30,20 +30,37 @@ Bankbote liest Geheimnisse nur beim Start. Nach einem Wechsel eines Schlüssels 
 
 ## Das Zertifikat des Hibiscus Servers
 
-Bankbote vertraut beim Hibiscus Server genau einem Zertifikat. Jameica erzeugt es beim ersten Start selbst. Ein Weg, es als PEM zu bekommen, aus dem gemeinsamen Namespace:
+Bankbote vertraut beim Hibiscus Server genau einem Zertifikat. Jameica erzeugt es beim ersten Start selbst, selbst signiert, mit `CN=<Name>, O=Jameica Certificate` und ohne subjectAlternativeName, und hält es unter dem Eintrag `jameica` im Schlüsselspeicher `/data/cfg/jameica.keystore`, den das Master-Passwort öffnet.
+
+Am sichersten kommt das Zertifikat **aus dem Schlüsselspeicher**, ohne der Verbindung trauen zu müssen. Mit dem Image `ghcr.io/encircle360-oss/hibiscus-server` und dem `keytool` eines JDK:
+
+```bash
+docker cp hibiscus:/data/cfg/jameica.keystore ./jameica.keystore
+keytool -exportcert -rfc -alias jameica -keystore jameica.keystore \
+  -storepass:file /run/secrets/hibiscus/master-password > certificate.pem
+rm jameica.keystore
+```
+
+Die Kopie des Schlüsselspeichers enthält den privaten Schlüssel des Servers; sie gehört sofort wieder gelöscht.
+
+Wer das Zertifikat über die Verbindung holt, aus dem gemeinsamen Namespace, vergleicht seinen Fingerabdruck mit dem aus dem Schlüsselspeicher (`keytool -list -v -alias jameica -keystore …`), bevor die Datei in Bankbote kommt:
 
 ```bash
 openssl s_client -connect 127.0.0.1:8080 -showcerts </dev/null 2>/dev/null \
   | openssl x509 -outform PEM > certificate.pem
 openssl x509 -in certificate.pem -noout -fingerprint -sha256
+# or without openssl: keytool -printcert -sslserver 127.0.0.1:8080 -rfc > certificate.pem
 ```
 
-Den Fingerabdruck mit dem vergleichen, den der Hibiscus Server selbst zeigt (Web-Admin von Jameica, Bereich Zertifikate), bevor die Datei in Bankbote kommt. Erzeugt Jameica ein neues Zertifikat, verweigert Bankbote die Verbindung, bis die neue Datei eingehängt und Bankbote neu gestartet ist. Wo Web-Admin den Fingerabdruck zeigt, ist nicht gegen einen laufenden Server geprüft.
+Web-Admin zeigt den Fingerabdruck des eigenen Zertifikats nicht: Die Liste der Zertifikate dort (`/webadmin/`, ebenso `/webadmin/rest/certs/list`) enthält nur die Zertifikate, denen Jameica vertraut, nicht das eigene. Die Integrationstests holen das Zertifikat aus dem Schlüsselspeicher und prüfen, dass der Server genau dieses vorlegt.
+
+Erzeugt Jameica ein neues Zertifikat, etwa auf einem neuen Volume, verweigert Bankbote die Verbindung, bis die neue Datei eingehängt und Bankbote neu gestartet ist.
 
 ## Der Hibiscus Server
 
 - Das Web-Admin von Jameica muss laufen, mit HTTPS und Anmeldung, wie vorgegeben (`listener.http.ssl=true`, `listener.http.auth=true`). Bankbote liest die JSON-Beans unter `/webadmin/rest/hibiscus/…`.
-- `json.indent` größer als 0 lassen (Vorgabe 2), damit der Server `application/json` sendet; ohne Inhaltstyp liest Bankbote die Antwort als ISO-8859-1.
+- `json.indent` größer als 0 lassen (Vorgabe 2), damit der Server `application/json` sendet; er sendet ihn ohne `charset`, schreibt aber UTF-8, und so liest Bankbote ihn. Ohne Inhaltstyp liest Bankbote die Antwort als ISO-8859-1.
+- Der Benutzername ist beliebig, darf aber nicht leer sein; mit leerem Namen antwortet der Server 401, und Bankbote startet mit leerem `bankbote.hibiscus.username` gar nicht.
 - **Benachrichtigung:** In den Einstellungen des Payment-Servers die Benachrichtigungs-URL (`notify.url`) auf `http://127.0.0.1:8089/notify` setzen. Sie kommt je Konto nach dem Saldenabruf; ist „Saldo synchronisieren“ für ein Konto aus, kommt sie nicht, und der Zeitplan holt dessen Umsätze. Einzelheiten unter [Hibiscus Server](hibiscus.md#die-benachrichtigung-notifyurl).
 - Vorgemerkte Umsätze darf der Server abrufen oder nicht (`umsatz.fetchnotbooked`, beim Payment-Server vorgegeben `false`); Bankbote liefert sie nie.
 

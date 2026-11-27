@@ -8,6 +8,8 @@
 | `src/main/resources/application.yaml` | Vorgaben von Server, Actuator und `bankbote.*` |
 | `src/main/resources/META-INF/spring.factories` | meldet die Analyse für eine fehlerhafte Konfiguration an |
 | `src/test/java/com/encircle360/bankbote/` | die Tests, je Klasse neben ihrem Paket |
+| `src/integrationTest/java/` | Integrationstests gegen echte Server in Containern, siehe [Integrationstests](#integrationstests) |
+| `src/integrationTest/images/Dockerfile` | die Images der Integrationstests, je mit Tag und Digest; wird nie gebaut |
 | `src/test/java/com/encircle360/bankbote/testing/` | nachgebaute Server: `FakeHttpServer` (HTTP und HTTPS des JDK), `FakeHibiscus` (JSON-Beans mit eigenem Zertifikat und Master-Passwort), `FakeErpNext` (Bankkonten und Bankumsätze der REST-API mit Token), `FakeSource` (Quelle im Speicher), `TestCertificate` (selbst signierte Zertifikate mit `keytool`, nur im temporären Verzeichnis) |
 | `Containerfile`, `.dockerignore` | natives Image mit GraalVM, Laufzeit auf distroless |
 | `.github/workflows/` | CI, siehe unten |
@@ -55,6 +57,25 @@ Die Tests laufen auf der JVM und nur gegen Server auf `127.0.0.1`, die sie selbs
 
 Was nur gegen einen echten Hibiscus Server und ein echtes ERPNext geprüft werden kann, steht im [README](../README.md#was-getestet-ist-und-was-nicht) und in [Betrieb](betrieb.md#der-dienstbenutzer-in-erpnext).
 
+## Integrationstests
+
+Die Integrationstests unter `src/integrationTest` lassen Bankbote gegen echte Server in Containern laufen. Sie haben ein eigenes Source-Set und eigene Gradle-Tasks, liegen außerhalb der Abdeckungsgrenze der Unit-Tests und laufen nicht mit `./gradlew check`. Sie nutzen die nachgebauten Server der Unit-Tests mit, wo ein echter fehlt.
+
+| Task | Tag | Server | Dauer, Speicher |
+|---|---|---|---|
+| `./gradlew hibiscusTest` | `hibiscus` | Hibiscus Server 2.12.4 aus dem Image von encircle360-oss/hibiscus-server-image mit MariaDB 11.8 | lokal etwa 40 s nach dem Laden der Images; Hibiscus Server bis etwa 500 MiB, MariaDB etwa 150 MiB, dazu die JVM der Tests |
+
+Nötig ist ein Docker, das Testcontainers erreicht, und ein JDK 25. Jede Testklasse startet ihre Container selbst und hält sie mit Testcontainers zusammen, die Hilfe `ryuk` von Testcontainers räumt nach einem Abbruch auf. Die Suiten nacheinander laufen lassen, nicht gleichzeitig.
+
+**Hibiscus Server:** Der Test erzeugt Master-Passwort und Passwort der Datenbank bei jedem Lauf, legt sie als Dateien nur lesbar in den Container und startet den Server mit schreibgeschütztem Root-Dateisystem. Der Server legt beim Start das Schema des Herstellers in MariaDB an. `HibiscusFixtures` schreibt erfundene Konten und Umsätze über JDBC in die Tabellen `konto` und `umsatz`; der Server sieht sie sofort. Das Zertifikat holt `HibiscusServer.certificateFromKeyStore()` aus `/data/cfg/jameica.keystore`, so wie [Betrieb](betrieb.md#das-zertifikat-des-hibiscus-servers) es beschreibt. Die Ergebnisse stehen unter [Hibiscus Server](hibiscus.md#gegen-einen-laufenden-server-geprüft).
+
+**Images:** Jedes Image, auch `testcontainers/ryuk`, steht mit Tag und Digest in `src/integrationTest/images/Dockerfile`, das Dependabot aktuell hält. Die Tests lesen es; `build.gradle.kts` gibt Testcontainers das Image von `ryuk` über `TESTCONTAINERS_RYUK_CONTAINER_IMAGE`. Eine Variable `BANKBOTE_IMAGE_<STAGE>` ersetzt ein Image, etwa ein selbst gebautes:
+
+```bash
+(cd ../hibiscus-server-image && ./build.sh)          # builds hibiscus-server:local
+BANKBOTE_IMAGE_HIBISCUS_SERVER=hibiscus-server:local ./gradlew hibiscusTest
+```
+
 ## Stil
 
 - Java 25, Spring Boot 4, google-java-format über Spotless; `javac` mit `-Xlint:all -Werror`.
@@ -69,12 +90,13 @@ Was nur gegen einen echten Hibiscus Server und ein echtes ERPNext geprüft werde
 | Workflow | Jobs |
 |---|---|
 | `tests.yml` | `./gradlew check`: Tests, Format, Abdeckung |
+| `integration.yml` | `./gradlew hibiscusTest` in jedem Pull Request, auf `main` und wöchentlich: die Suite braucht etwa eine Minute, und der wöchentliche Lauf bemerkt Änderungen an Images oder Runner zwischen den Pull Requests |
 | `linters.yml` | pre-commit: Dateihygiene, `shellcheck`, `hadolint`, `zizmor`, Spotless |
 | `security.yml` | `gitleaks` über die ganze Historie, `zizmor`, Trivy über die Bibliotheken des ausführbaren Jars, CodeQL |
 | `image.yml` | natives Image und Container für `linux/amd64` und `linux/arm64` auf eigenen Runnern, Rauchtest mit erfundenen Zugangsdaten; veröffentlicht nur, wenn `release.yml` es aufruft |
 | `release.yml` | bei einem Tag `vX.Y.Z`: prüft Tag gegen `version` in `build.gradle.kts` und `CHANGELOG.md`, veröffentlicht `ghcr.io/encircle360-oss/bankbote:X.Y.Z` und `:X.Y` mit SBOM und Provenienz und legt das GitHub-Release mit dem Abschnitt aus dem Changelog an |
 
-Alle Actions sind per Commit-SHA mit der Version als Kommentar gepinnt, die Basis-Images per Digest, Gradle per SHA-256 der Verteilung, die Plugins und Bibliotheken exakt (die Bibliotheken über die BOM von Spring Boot). Dependabot schlägt wöchentlich Updates vor, mit sieben Tagen Wartezeit.
+Alle Actions sind per Commit-SHA mit der Version als Kommentar gepinnt, die Basis-Images und die Images der Integrationstests per Digest, Gradle per SHA-256 der Verteilung, die Plugins und Bibliotheken exakt (die Bibliotheken über die BOM von Spring Boot). Dependabot schlägt wöchentlich Updates vor, mit sieben Tagen Wartezeit.
 
 ## Ein Release
 
