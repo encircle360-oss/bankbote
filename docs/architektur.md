@@ -9,6 +9,7 @@ Bankbote ist ein kleiner Spring-Boot-Dienst in Java 25, gebaut als natives Image
 | `account` | `Iban`: prüft eine IBAN nach ISO 13616 (mod 97), normalisiert sie und zeigt sie in `toString()` nur maskiert, etwa `DE17…0001` |
 | `secret` | `Secret`: liest ein Geheimnis aus einer Datei mit einer Zeile; `toString()` zeigt nie den Wert |
 | `tls` | `TlsContexts`: der Kontext mit genau einem gepinnten Zertifikat für den Hibiscus Server, der mit eigenen Zertifizierungsstellen und der des Systems für ERPNext |
+| `net` | `Failures`: beschreibt eine gescheiterte Verbindung mit Klasse und Meldung, ohne Inhalte |
 | `source` | die Schnittstelle `TransactionSource` mit `SourceAccount`, `SourceTransaction` und `SourceEntries`, unabhängig von Hibiscus |
 | `hibiscus` | `HibiscusClient` liest die JSON-Beans, `HibiscusSource` macht daraus Konten und Umsätze, `HibiscusValues` liest Beträge, Daten, Flags und Referenzen, siehe [Hibiscus Server](hibiscus.md) |
 | `erpnext` | `ErpNextClient`: ein Client je Ziel für die REST-API mit dem Schlüssel dieses Ziels, ohne Weiterleitungen; `BankTransactionDocument` und die Antworten |
