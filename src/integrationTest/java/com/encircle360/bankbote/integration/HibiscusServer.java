@@ -27,7 +27,6 @@ import javax.net.ssl.SSLContext;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.wait.strategy.Wait;
 
 /**
  * A real Hibiscus Server from the image of encircle360-oss/hibiscus-server-image with MariaDB 11.8,
@@ -87,9 +86,7 @@ public final class HibiscusServer implements AutoCloseable, LogSource {
                     databasePassword))
             .withCommand("--character-set-server=utf8mb3", "--collation-server=utf8mb3_general_ci")
             .withExposedPorts(3306)
-            .waitingFor(
-                Wait.forLogMessage(".*ready for connections.*", 2)
-                    .withStartupTimeout(Duration.ofMinutes(2)));
+            .waitingFor(LogOrExit.line(".*ready for connections.*", 2, Duration.ofMinutes(3)));
     database.start();
     GenericContainer<?> server =
         new GenericContainer<>(Images.image("hibiscus-server"))
@@ -108,9 +105,7 @@ public final class HibiscusServer implements AutoCloseable, LogSource {
                     .withCapDrop(com.github.dockerjava.api.model.Capability.ALL)
                     .withSecurityOpts(java.util.List.of("no-new-privileges")))
             .withExposedPorts(8080)
-            .waitingFor(
-                Wait.forLogMessage(".*all plugins initialised.*", 1)
-                    .withStartupTimeout(Duration.ofMinutes(3)));
+            .waitingFor(LogOrExit.line(".*all plugins initialised.*", 1, Duration.ofMinutes(5)));
     try {
       server.start();
     } catch (RuntimeException e) {

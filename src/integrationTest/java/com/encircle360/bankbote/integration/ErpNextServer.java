@@ -17,7 +17,6 @@ import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.wait.strategy.Wait;
 
 /**
  * A real ERPNext 16 from the image of encircle360-oss/erpnext_germanized, with MariaDB 11.8 and
@@ -34,11 +33,11 @@ public final class ErpNextServer implements AutoCloseable, LogSource {
   private static final String SECRETS = "/run/secrets/erpnext";
 
   /**
-   * The command of the ERPNext container. It writes the shared configuration, creates the site with
-   * ERPNext only, makes sure the site has its encryption key before the workers of gunicorn start,
-   * and then starts gunicorn as the image does.
+   * The script of the ERPNext container, mounted read-only and run by bash. It writes the shared
+   * configuration, creates the site with ERPNext only, makes sure the site has its encryption key
+   * before the workers of gunicorn start, and then starts gunicorn as the image does.
    */
-  private static final String COMMAND =
+  private static final String SCRIPT =
       String.join(
           "\n",
           "set -eu",
@@ -89,6 +88,7 @@ public final class ErpNextServer implements AutoCloseable, LogSource {
     String rootPassword = randomPassword();
     writeSecret(secrets, "admin-password", adminPassword);
     writeSecret(secrets, "db-root-password", rootPassword);
+    writeSecret(secrets, "start-site.sh", SCRIPT);
     Network network = Network.newNetwork();
     GenericContainer<?> database =
         new GenericContainer<>(Images.image("mariadb"))
@@ -100,27 +100,25 @@ public final class ErpNextServer implements AutoCloseable, LogSource {
                 "--collation-server=utf8mb4_unicode_ci",
                 "--skip-character-set-client-handshake",
                 "--innodb-snapshot-isolation=OFF")
-            .waitingFor(
-                Wait.forLogMessage(".*ready for connections.*", 2)
-                    .withStartupTimeout(Duration.ofMinutes(3)));
+            .waitingFor(LogOrExit.line(".*ready for connections.*", 2, Duration.ofMinutes(3)));
     GenericContainer<?> redis =
         new GenericContainer<>(Images.image("redis"))
             .withNetwork(network)
             .withNetworkAliases("redis")
             .waitingFor(
-                Wait.forLogMessage(".*Ready to accept connections.*", 1)
-                    .withStartupTimeout(Duration.ofMinutes(2)));
+                LogOrExit.line(".*Ready to accept connections.*", 1, Duration.ofMinutes(2)));
     GenericContainer<?> erpnext =
         new GenericContainer<>(Images.image("erpnext"))
             .withNetwork(network)
             .withFileSystemBind(secrets.toString(), SECRETS, BindMode.READ_ONLY)
-            .withCreateContainerCmdModifier(
-                command -> command.withEntrypoint("/usr/local/bin/entrypoint.sh", "bash", "-c"))
-            .withCommand(COMMAND)
+            // The command goes to Docker as it is: Testcontainers would split a command string at
+            // its spaces.
+            .withCreateContainerCmdModifier(command ->
+                command
+                    .withEntrypoint("/usr/local/bin/entrypoint.sh")
+                    .withCmd("bash", SECRETS + "/start-site.sh"))
             .withExposedPorts(8000)
-            .waitingFor(
-                Wait.forLogMessage(".*bankbote: site ready.*", 1)
-                    .withStartupTimeout(Duration.ofMinutes(20)));
+            .waitingFor(LogOrExit.line("bankbote: site ready", 1, Duration.ofMinutes(15)));
     ErpNextServer server =
         new ErpNextServer(network, database, redis, erpnext, adminPassword, rootPassword);
     try {

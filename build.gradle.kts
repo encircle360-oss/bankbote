@@ -1,3 +1,4 @@
+import java.time.Duration
 import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
 plugins {
@@ -119,8 +120,10 @@ fun pinnedImage(name: String): String =
         .map { it.removePrefix("FROM ").substringBefore(" ") }
         .single { it.substringBefore("@").substringBeforeLast(":").endsWith("/$name") || it.startsWith("$name:") }
 
-fun registerIntegrationTests(name: String, tag: String, text: String) =
+fun registerIntegrationTests(name: String, tag: String, text: String, limit: Duration) =
     tasks.register<Test>(name) {
+        // A stuck container turns the task red at this limit instead of holding the build.
+        timeout = limit
         description = text
         group = "verification"
         testClassesDirs = integrationTest.output.classesDirs
@@ -140,6 +143,7 @@ registerIntegrationTests(
     "hibiscusTest",
     "hibiscus",
     "Runs Bankbote against a real Hibiscus Server with MariaDB in containers.",
+    Duration.ofMinutes(10),
 )
 
 spotless {
@@ -191,4 +195,5 @@ registerIntegrationTests(
     "erpnextTest",
     "erpnext",
     "Runs Bankbote against a real ERPNext 16 with MariaDB and Redis in containers.",
+    Duration.ofMinutes(30),
 )
