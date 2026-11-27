@@ -21,6 +21,8 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ### Geändert
 
+- Das Java-Paket heißt jetzt `com.encircle360.oss.bankbote` statt `com.encircle360.bankbote`, die Gradle-Gruppe `com.encircle360.oss`: Die Open-Source-Projekte der encircle360 GmbH bekommen einen eigenen Namensraum. Image, Präfix `bankbote.` der Konfiguration und Umgebungsvariablen bleiben, wie sie sind.
+
 - Bankbote reicht keine Entwürfe mehr ein. Hält ERPNext eine `transaction_id` von Bankbote als Entwurf, zählt der Umsatz als fehlgeschlagen mit der Meldung, den Entwurf in ERPNext einzureichen oder zu löschen, und wird nicht doppelt angelegt. Ein echtes ERPNext 16 zeigte, dass das Einreichen eines Entwurfs das Recht Write auf Bank Transaction braucht, das die Rolle des Dienstbenutzers nicht hat und nicht bekommen soll.
 - Die Art eines Umsatzes (`transaction_type`) wird auf 50 Zeichen gekürzt statt auf 140: So lang ist das Feld in ERPNext 16, ein längerer Wert ließ das Anlegen mit `CharacterLengthExceededError` scheitern. `reference_number` ist ein Feld vom Typ Small Text und wird nicht mehr gekürzt.
 
