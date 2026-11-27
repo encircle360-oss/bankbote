@@ -45,7 +45,8 @@ public record BankboteProperties(
    *
    * @param url the base URL, such as {@code https://127.0.0.1:8080}
    * @param certificate the PEM file with the certificate of the server, the only one trusted
-   * @param username the user name; Hibiscus Server checks only the password
+   * @param username the user name; Hibiscus Server takes any but an empty one and checks only the
+   *     password
    * @param passwordFile the file with the master password
    */
   public record Hibiscus(
