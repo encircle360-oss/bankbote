@@ -600,16 +600,42 @@ class DeliveryTest {
   }
 
   @Test
-  void anInterruptedRunEndsWithAnError() {
-    source.account("1", A1);
-    Delivery delivery = delivery(List.of(route(A1, "a")), client("a", erp("a")));
-    Thread.currentThread().interrupt();
+  void anInterruptedRunEndsWithAnError() throws InterruptedException {
+    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
+    java.util.concurrent.CountDownLatch reached = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+    a.override(request -> {
+      reached.countDown();
+      try {
+        release.await();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      return null;
+    });
+    source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
+    Delivery delivery = delivery(List.of(route(A1, "a")), client("a", a));
+    Thread runner = Thread.currentThread();
+    // The run is interrupted while it waits for its target; an interrupt set before the run starts
+    // goes unnoticed whenever the target has already finished.
+    Thread interrupter =
+        Thread.ofPlatform()
+            .start(() -> {
+              try {
+                reached.await();
+                runner.interrupt();
+              } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+              }
+            });
     try {
       org.assertj.core.api.Assertions.assertThatThrownBy(() -> delivery.run(FROM))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("interrupted during a run");
     } finally {
+      release.countDown();
       Thread.interrupted();
+      interrupter.join();
     }
   }
 }
