@@ -1,6 +1,7 @@
 package com.encircle360.bankbote.erpnext;
 
 import com.encircle360.bankbote.erpnext.ErpNextException.Kind;
+import com.encircle360.bankbote.net.Failures;
 import com.encircle360.bankbote.secret.Secret;
 import java.io.IOException;
 import java.net.URI;
@@ -211,13 +212,7 @@ public final class ErpNextClient {
           http.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new ErpNextException(
-          Kind.UNAVAILABLE,
-          "ERPNext "
-              + target
-              + " cannot be reached: "
-              + e.getClass().getSimpleName()
-              + ": "
-              + e.getMessage());
+          Kind.UNAVAILABLE, "ERPNext " + target + " cannot be reached: " + Failures.describe(e));
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ErpNextException(

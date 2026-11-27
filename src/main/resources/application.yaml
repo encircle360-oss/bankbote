@@ -23,6 +23,9 @@ management:
       show-details: always
       probes:
         enabled: true
+  health:
+    diskspace:
+      enabled: false
   info:
     env:
       enabled: false

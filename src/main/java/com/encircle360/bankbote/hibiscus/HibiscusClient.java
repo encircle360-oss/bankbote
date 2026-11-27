@@ -1,5 +1,6 @@
 package com.encircle360.bankbote.hibiscus;
 
+import com.encircle360.bankbote.net.Failures;
 import com.encircle360.bankbote.secret.Secret;
 import com.encircle360.bankbote.source.SourceException;
 import java.io.IOException;
@@ -142,10 +143,6 @@ public final class HibiscusClient {
   }
 
   private static SourceException unreachable(IOException e) {
-    return new SourceException(
-        "Hibiscus Server cannot be reached: "
-            + e.getClass().getSimpleName()
-            + ": "
-            + e.getMessage());
+    return new SourceException("Hibiscus Server cannot be reached: " + Failures.describe(e));
   }
 }
