@@ -4,13 +4,13 @@
 
 | Pfad | Inhalt |
 |---|---|
-| `src/main/java/com/encircle360/bankbote/` | der Dienst, Pakete wie in [Architektur](architektur.md#bausteine) |
+| `src/main/java/com/encircle360/oss/bankbote/` | der Dienst, Pakete wie in [Architektur](architektur.md#bausteine) |
 | `src/main/resources/application.yaml` | Vorgaben von Server, Actuator und `bankbote.*` |
 | `src/main/resources/META-INF/spring.factories` | meldet die Analyse für eine fehlerhafte Konfiguration an |
-| `src/test/java/com/encircle360/bankbote/` | die Tests, je Klasse neben ihrem Paket |
+| `src/test/java/com/encircle360/oss/bankbote/` | die Tests, je Klasse neben ihrem Paket |
 | `src/integrationTest/java/` | Integrationstests gegen echte Server in Containern, siehe [Integrationstests](#integrationstests) |
 | `src/integrationTest/images/Dockerfile` | die Images der Integrationstests, je mit Tag und Digest; wird nie gebaut |
-| `src/test/java/com/encircle360/bankbote/testing/` | nachgebaute Server: `FakeHttpServer` (HTTP und HTTPS des JDK), `FakeHibiscus` (JSON-Beans mit eigenem Zertifikat und Master-Passwort), `FakeErpNext` (Bankkonten und Bankumsätze der REST-API mit Token), `FakeSource` (Quelle im Speicher), `TestCertificate` (selbst signierte Zertifikate mit `keytool`, nur im temporären Verzeichnis) |
+| `src/test/java/com/encircle360/oss/bankbote/testing/` | nachgebaute Server: `FakeHttpServer` (HTTP und HTTPS des JDK), `FakeHibiscus` (JSON-Beans mit eigenem Zertifikat und Master-Passwort), `FakeErpNext` (Bankkonten und Bankumsätze der REST-API mit Token), `FakeSource` (Quelle im Speicher), `TestCertificate` (selbst signierte Zertifikate mit `keytool`, nur im temporären Verzeichnis) |
 | `Containerfile`, `.dockerignore` | natives Image mit GraalVM, Laufzeit auf distroless |
 | `.github/workflows/` | CI, siehe unten |
 | `.github/scripts/smoke-test.sh` | Rauchtest des Images |

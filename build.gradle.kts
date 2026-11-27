@@ -9,7 +9,7 @@ plugins {
     id("com.diffplug.spotless") version "8.11.0"
 }
 
-group = "com.encircle360.bankbote"
+group = "com.encircle360.oss"
 version = "0.1.0-SNAPSHOT"
 
 java {
@@ -74,7 +74,7 @@ jacoco {
     toolVersion = "0.8.16"
 }
 
-val coverageExclusions = listOf("com/encircle360/bankbote/BankboteApplication*")
+val coverageExclusions = listOf("com/encircle360/oss/bankbote/BankboteApplication*")
 
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
