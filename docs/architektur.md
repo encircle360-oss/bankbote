@@ -28,7 +28,7 @@ Eine weitere Quelle implementiert `TransactionSource` und hält deren Regeln: Ko
    2. Umsätze des Fensters lesen; vorgemerkte zählen, unlesbare als fehlgeschlagen zählen.
    3. Gibt es etwas zu liefern, beim ersten Mal die Bankkonten des Unternehmens holen (`Bank Account` mit `is_company_account = 1`) und das eine mit der IBAN wählen, verglichen nach Normalisierung, also auch mit Leerzeichen oder Kleinbuchstaben in ERPNext.
    4. In ERPNext nachsehen, welche `transaction_id` dieser Umsätze das Bankkonto schon hat (je 50 in einer Anfrage).
-   5. Je Umsatz, ältester zuerst: schon eingereicht oder storniert → übersprungen; nur als Entwurf vorhanden → eingereicht; sonst angelegt und eingereicht.
+   5. Je Umsatz, ältester zuerst: schon eingereicht oder storniert → übersprungen; nur als Entwurf vorhanden → fehlgeschlagen mit einer Meldung, weil der Dienstbenutzer keinen Entwurf einreichen darf; sonst angelegt und in derselben Anfrage eingereicht.
 4. Jeder Thread gibt einen `TargetReport` zurück; `Delivery` setzt den `RunReport` zusammen, `RunReportLog` schreibt ihn ins Log, `DeliveryHealthIndicator` zeigt ihn.
 
 ### Fehler
@@ -55,7 +55,7 @@ Die `transaction_id` ist `<source-key>:<ID des Umsatzes im Hibiscus Server>`, et
 
 - **Zweimal laufen, überlappende Fenster:** Was vorhanden ist, wird übersprungen.
 - **Absturz oder Zeitüberschreitung beim Anlegen:** Bankbote legt mit `docstatus` 1 an, ERPNext legt an und reicht ein in einer Anfrage, ohne Entwurf dazwischen. Ist die Antwort verloren gegangen, findet der nächste Lauf den Umsatz und überspringt ihn.
-- **Liegengebliebener Entwurf:** Hat ERPNext einen Umsatz nur als Entwurf (etwa von Hand angelegt, oder weil ein ERPNext beim Anlegen nicht einreicht), reicht Bankbote ihn ein, statt einen zweiten anzulegen.
+- **Entwurf:** Hält ERPNext einen Umsatz mit dieser Kennung nur als Entwurf, etwa von Hand angelegt, zählt er als fehlgeschlagen mit der Meldung `… holds hibiscus:… as a draft; submit or delete it there`, und Bankbote legt ihn nicht noch einmal an. Einreichen könnte Bankbote ihn nur mit dem Recht Write, das der Dienstbenutzer nicht hat, siehe [Betrieb](betrieb.md#der-dienstbenutzer-in-erpnext). Antwortet ERPNext auf ein Anlegen mit einem Entwurf, gilt dasselbe.
 - **Kennung in ERPNext nicht eindeutig:** `transaction_id` ist in der Datenbank nicht eindeutig. Hält ERPNext eine Kennung mehrmals, zählt sie als vorhanden und das Log nennt es.
 - **ERPNext übernimmt die Kennung nicht:** Jede Antwort auf ein Anlegen muss die gesendete `transaction_id` tragen. Fehlt sie, hält Bankbote das Ziel an, weil die Prüfung auf Vorhandenes sonst ins Leere ginge.
 
@@ -72,21 +72,21 @@ Die Sperre gegen gleichzeitige Läufe gilt im Prozess. Zwei Instanzen gegen dies
 | `currency` | Währung des Kontos im Hibiscus Server | |
 | `deposit`, `withdrawal` | Betrag | positiv → `deposit`, negativ → `withdrawal` mit Betrag ohne Vorzeichen, die andere Seite 0; 0 auf beiden Seiten bei 0 |
 | `description` | Verwendungszweck | alle Zeilen, ungekürzt |
-| `reference_number` | Ende-zu-Ende-Referenz (`endtoendid`), sonst Kundenreferenz (`customerref`) | ohne `NOTPROVIDED` und `NONREF` |
+| `reference_number` | Ende-zu-Ende-Referenz (`endtoendid`), sonst Kundenreferenz (`customerref`) | ohne `NOTPROVIDED` und `NONREF`; Small Text, ungekürzt |
 | `transaction_id` | `<source-key>:<id>` | |
-| `transaction_type` | Art (`art`) | |
+| `transaction_type` | Art (`art`) | auf 50 Zeichen gekürzt, die Länge des Felds in ERPNext 16 |
 | `bank_party_name` | Name der Gegenseite | |
 | `bank_party_iban` | Konto der Gegenseite, wenn es eine gültige IBAN ist | normalisiert |
 | `bank_party_account_number` | Konto der Gegenseite, wenn es keine IBAN ist | |
 
-Felder vom Typ Data werden auf die 140 Zeichen von Frappe gekürzt.
+Felder vom Typ Data werden auf die 140 Zeichen von Frappe gekürzt, `transaction_type` auf seine 50. Ein Betrag von 0 kommt auf beiden Seiten als 0 an; ERPNext nimmt ihn an und setzt den Status „Reconciled“.
 
 **Warum die Ende-zu-Ende-Referenz `reference_number` wird:** Der Bankabgleich von ERPNext vergleicht `reference_number` mit der Referenz von Zahlungen. Die Ende-zu-Ende-Referenz einer SEPA-Zahlung legt der Zahler fest, oft mit der Rechnungsnummer; sie ist für den Abgleich die nützlichste. Die Kundenreferenz ist der Ersatz, wenn die Bank keine Ende-zu-Ende-Referenz liefert. Die Primanota ist eine interne Nummer der Bank, mit der in ERPNext nichts zu vergleichen ist; sie wird nicht übertragen.
 
 ## Entscheidungen
 
 - **JSON-Beans statt XML-RPC:** nur sie zeigen vorgemerkte Umsätze, siehe [Hibiscus Server](hibiscus.md#welche-schnittstelle-bankbote-liest).
-- **Anlegen mit `docstatus` 1:** kein Entwurf zwischen Anlegen und Einreichen; Entwürfe, die es trotzdem gibt, reicht Bankbote ein.
+- **Anlegen mit `docstatus` 1:** kein Entwurf zwischen Anlegen und Einreichen, und die Rechte Create und Submit genügen; Entwürfe, die es trotzdem gibt, meldet Bankbote, statt sie einzureichen.
 - **Ein Lauf für alle Konten statt je Konto:** Die Benachrichtigung des Hibiscus Servers nennt ein Konto, kommt aber vor dessen Umsätzen und nicht für jede Synchronisierung. Ein Lauf über alle Konten mit Verzögerung ist einfacher und verpasst nichts.
 - **Kein eigener Zustand:** Ohne Datenbank kann nichts zwischen Bankbote und ERPNext auseinanderlaufen. Der Preis sind wenige Anfragen je Konto und Lauf.
 - **Virtuelle Threads je Ziel:** Ziele sind voneinander unabhängig; innerhalb eines Ziels bleibt die Reihenfolge der Umsätze erhalten.
