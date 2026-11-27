@@ -2,7 +2,7 @@
 
 Bankbote liefert Kontoumsätze von einem [Hibiscus Server](https://github.com/willuhn/hibiscus.server) an ERPNext 16: Jeder gebuchte Umsatz eines Kontos wird ein eingereichter Bankumsatz (`Bank Transaction`) in der ERPNext-Installation des Unternehmens, dem das Konto gehört. Bankbote läuft dauerhaft neben dem Hibiscus Server, holt die neuen Umsätze nach jeder Synchronisierung und nach Zeitplan und schiebt sie über die REST-API von ERPNext an das richtige Unternehmen. ERPNext braucht dafür keine App und bekommt nie einen Zugang zum Hibiscus Server.
 
-> **Status: in Entwicklung, noch nicht einsatzfähig.** Diese erste Version ist vollständig gegen nachgebaute Server getestet: einen Hibiscus Server mit seinen JSON-Beans und drei ERPNext-Installationen mit ihrer REST-API. **Sie ist noch nie gegen einen echten Hibiscus Server, eine echte Bank oder ein echtes ERPNext gelaufen.** Was davon abhängt, steht unter [Was getestet ist und was nicht](#was-getestet-ist-und-was-nicht). Bitte noch nicht mit echten Konten betreiben, außer zum Ausprobieren mit einer Kopie von ERPNext.
+> **Status: in Entwicklung, noch nicht einsatzfähig.** Bankbote ist gegen nachgebaute Server getestet und gegen einen laufenden Hibiscus Server mit Konten und Umsätzen, die der Test selbst in dessen Datenbank schreibt. **Gegen eine echte Bank und ein echtes ERPNext ist Bankbote noch nie gelaufen.** Was davon abhängt, steht unter [Was getestet ist und was nicht](#was-getestet-ist-und-was-nicht). Bitte noch nicht mit echten Konten betreiben, außer zum Ausprobieren mit einer Kopie von ERPNext.
 
 ## Für wen
 
@@ -138,10 +138,19 @@ Bankbote wird testgetrieben entwickelt; die CI verlangt 100 % Abdeckung von Zeil
 - der Start mit falscher Zuordnung;
 - in der CI das native Image im Container, gestartet mit erfundenen Zugangsdaten.
 
+Gegen einen **laufenden Hibiscus Server 2.12.4** mit MariaDB in Containern, mit erfundenen Konten und Umsätzen in seiner Datenbank, in jedem Pull Request:
+
+- Anmeldung mit beliebigem, nicht leerem Benutzernamen, falsches, fehlendes Passwort und leerer Benutzername;
+- Konten mit IBAN und Währung, Datum, Beträge auch ab zehn Millionen in Exponentenschreibweise und mit einer Nachkommastelle, das Kennzeichen „vorgemerkt“ gesetzt, nicht gesetzt und leer, Umlaute und Eurozeichen, Inhaltstyp und Zeichensatz, die Ränder des Fensters, Reihenfolge und das Fehlen einer Grenze bei über 10 000 Umsätzen;
+- das Zertifikat aus dem Schlüsselspeicher des Servers, gepinnt;
+- der ganze Dienst gegen diesen Server und zwei nachgebaute ERPNext.
+
+Was dabei herauskam, steht unter [Hibiscus Server](docs/hibiscus.md#gegen-einen-laufenden-server-geprüft).
+
 **Nicht getestet**, weil es nur mit echten Systemen geht:
 
-- gegen einen echten Hibiscus Server: dass die JSON-Beans Datum, Betrag und Flags so schreiben, wie es der Quelltext erwarten lässt, und welche Zeichenkodierung sie haben;
-- gegen eine echte Bank: wie vorgemerkte Umsätze, Referenzen und Gegenkonten bei einer bestimmten Bank aussehen;
+- gegen eine echte Bank: der FinTS-Dialog, TAN-Verfahren, echte Abrufe und wie vorgemerkte Umsätze, Referenzen, Gegenkonten und Arten bei einer bestimmten Bank aussehen;
+- die Benachrichtigung `notify.url` nach einer echten Synchronisierung;
 - gegen ein echtes ERPNext 16: dass `transaction_id` beim Anlegen über die API gesetzt werden kann (Bankbote prüft das bei jedem Anlegen und hält das Ziel an, wenn nicht), dass ein Anlegen mit `docstatus` 1 einreicht und welche Rechte genau nötig sind.
 
 ## Bekannte Grenzen

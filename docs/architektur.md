@@ -37,7 +37,7 @@ Ein Fehler betrifft so wenig wie möglich:
 
 | Fehler | Folge |
 |---|---|
-| Quelle nicht erreichbar oder Passwort abgelehnt | der Lauf endet mit `sourceError`, kein Ziel wird gefragt |
+| Quelle nicht erreichbar oder Passwort abgelehnt | der Lauf endet mit `sourceError`, kein Ziel wird gefragt; `RunCoordinator` wiederholt ihn einmal nach `notify-delay`, danach erst wieder nach einem erfolgreichen Lauf |
 | Umsätze eines Kontos nicht lesbar | nur dieses Konto |
 | ein Umsatz unlesbar | nur dieser Umsatz, als fehlgeschlagen gezählt |
 | kein oder mehr als ein Bankkonto mit der IBAN | nur dieses Konto |

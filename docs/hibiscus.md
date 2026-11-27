@@ -11,7 +11,9 @@ Diese Seite hält fest, worauf sich Bankbote beim Hibiscus Server verlässt, mit
 | [willuhn/jameica](https://github.com/willuhn/jameica) | `3852ca2f` |
 | [willuhn/datasource](https://github.com/willuhn/datasource) | `003e30ee` |
 
-Dazu die Seiten [develop:xmlrpc](https://www.willuhn.de/wiki/doku.php?id=develop:xmlrpc), [develop:xmlrpc:umsatz](https://www.willuhn.de/wiki/doku.php?id=develop:xmlrpc:umsatz) und [develop:xmlrpc:konto](https://www.willuhn.de/wiki/doku.php?id=develop:xmlrpc:konto) des Wikis. **Nichts davon ist gegen einen laufenden Hibiscus Server geprüft.**
+Dazu die Seiten [develop:xmlrpc](https://www.willuhn.de/wiki/doku.php?id=develop:xmlrpc), [develop:xmlrpc:umsatz](https://www.willuhn.de/wiki/doku.php?id=develop:xmlrpc:umsatz) und [develop:xmlrpc:konto](https://www.willuhn.de/wiki/doku.php?id=develop:xmlrpc:konto) des Wikis.
+
+Was Bankbote von den JSON-Beans erwartet, prüfen die Integrationstests gegen einen laufenden Hibiscus Server 2.12.4 aus dem Image von [encircle360-oss/hibiscus-server-image](https://github.com/encircle360-oss/hibiscus-server-image) mit MariaDB 11.8, siehe [Gegen einen laufenden Server geprüft](#gegen-einen-laufenden-server-geprüft). Nicht geprüft ist alles, was eine Bank braucht: FinTS-Dialog, TAN, echte Abrufe, die Benachrichtigung nach einer echten Synchronisierung und echte Inhalte der Felder.
 
 ## Anmeldung und TLS
 
@@ -98,3 +100,26 @@ Was gesendet wird:
 Die Nachricht geht asynchron weiter (`MessagingQueue`), und der Saldenabruf läuft vor dem Umsatzabruf. Die Benachrichtigung kann also eintreffen, bevor die Umsätze derselben Synchronisierung gespeichert sind.
 
 **Folgen für Bankbote:** Die Benachrichtigung ist nur ein Hinweis. Bankbote liest ihren Rumpf nicht, wartet `bankbote.notify-delay` (vorgegeben 60 s) und startet dann einen Lauf über alle Konten; alle Benachrichtigungen in dieser Zeit ergeben denselben Lauf. Der Zeitplan fängt Synchronisierungen ohne Saldenabruf auf. Weil der Hibiscus Server keine Anmeldung mitschicken kann und jedem Zertifikat traut, ist die Benachrichtigung über `http://127.0.0.1:8089/notify` im gemeinsamen Netzwerk-Namespace vorgesehen, siehe [Sicherheit](sicherheit.md#die-endpunkte).
+
+## Gegen einen laufenden Server geprüft
+
+Die Suite `hibiscusTest` (siehe [Entwicklung](entwicklung.md#integrationstests)) startet Hibiscus Server 2.12.4 aus dem Image von encircle360-oss/hibiscus-server-image mit MariaDB 11.8 in `utf8mb3`, so wie ein Betreiber ihn betreibt: Root-Dateisystem schreibgeschützt, ohne Capabilities, Master-Passwort und Passwort der Datenbank als Dateien, beide bei jedem Lauf neu erzeugt. Eine Bank gibt es nicht; Konten und Umsätze schreibt der Test über JDBC in die Tabellen `konto` und `umsatz` des Schemas des Herstellers (`plugins/hibiscus/sql/mysql-create.sql`), mit erfundenen Werten.
+
+| Annahme | Ergebnis |
+|---|---|
+| Die JSON-Beans antworten, sobald der Server läuft | **widerlegt:** Ein Start durchläuft vier Phasen, gemessen mit einer Schleife, die vor dem Container startet: Verbindung abgelehnt, solange der Port nicht veröffentlicht ist; Verbindung angenommen und beim TLS-Handshake geschlossen, solange der veröffentlichte Port niemanden hinter sich hat; HTTP 500 mit `no command found for REST url` für etwa eine halbe Sekunde, auch noch nach der Meldung `all plugins initialised` des Einstiegspunkts, weil die Beans erst nach dem Webserver registriert werden (`RestMessageConsumer`, „searching auto rest beans“); dann 200. Auf dem Runner der CI dauern die Phasen länger. Bankbote behandelt alle drei gleich, als Quelle, die noch nicht lesbar ist, und wiederholt einen solchen Lauf einmal nach `notify-delay` (`StartBesideHibiscusTest`); die Tests warten mit `Readiness` über alle drei Phasen, bis `konto/list` mit 200 antwortet (`ReadinessTest`) |
+| Zeilen, die neben dem Server in die Datenbank geschrieben werden, sieht er | **bestätigt:** sofort, ohne Neustart; Prüfsumme (`checksum`) und andere abgeleitete Spalten dürfen leer bleiben |
+| Anmeldung mit beliebigem Benutzernamen und dem Master-Passwort | **bestätigt**, mit einer Einschränkung: ein **leerer** Benutzername ergibt 401 wie ein falsches oder fehlendes Passwort. Bankbote startet deshalb nicht mehr mit leerem `bankbote.hibiscus.username` |
+| `konto/list` mit `id`, `iban`, `waehrung` | **bestätigt;** ein Konto ohne IBAN hat keinen Schlüssel `iban` |
+| `datum` als `yyyy-MM-dd` | **bestätigt** |
+| `betrag` wie `Double.toString` | **bestätigt:** `-1234.56`, `7.1`, `-0.5`, `0.0`, ab zehn Millionen in Exponentenschreibweise, etwa `1.0E7`, `1.23456789E7`, `9.999999999E7`; Bankbote liest alle exakt |
+| `flags` mit `FLAG_NOTBOOKED` | **bestätigt:** `2` und `3` vorgemerkt, `0` und `1` gebucht, eine leere Spalte fehlt im JSON. Einen leeren Text kann die Spalte nicht halten, sie ist eine Zahl |
+| Umlaute, Eurozeichen und Zeichen außerhalb von Latin-1 in Zweck und Name | **bestätigt:** `ä ö ü ß €`, `Ł`, `Ω` und typografische Anführungszeichen kommen unverändert an, auch mit den JDBC-Parametern des Herstellers (`characterEncoding=ISO8859_1`) |
+| Inhaltstyp und Zeichensatz | `application/json` **ohne** `charset`, der Inhalt ist UTF-8; Bankbote liest `application/json` als UTF-8 |
+| Fenster `days/<n>` | **bestätigt:** `n` Tage zurück ab dem Tag des Servers (Zeitzone Europe/Berlin), Buchungen mit Datum in der Zukunft inklusive; Bankbote verwirft den zusätzlichen Tag selbst |
+| Reihenfolge und Grenze | neueste zuerst nach `datum`, dann `id` absteigend; **keine Grenze**, 10 051 Umsätze kamen vollständig |
+| Konto, das es nicht gibt | HTTP 500, Bankbote meldet es als Fehler des Kontos |
+| Zertifikat | CN aus `HIBISCUS_CERT_HOSTNAME`, `O=Jameica Certificate`, ohne subjectAlternativeName; der Server legt genau das Zertifikat des Eintrags `jameica` in `/data/cfg/jameica.keystore` vor. Web-Admin zeigt seinen Fingerabdruck **nicht**, siehe [Betrieb](betrieb.md#das-zertifikat-des-hibiscus-servers) |
+| Passwörter im Log des Servers | keines |
+
+Ein weiterer Test startet den ganzen Dienst Bankbote gegen diesen Server und zwei nachgebaute ERPNext: Jedes Konto geht an sein Ziel, vorgemerkte Umsätze und Konten ohne Zuordnung gehen nirgendwohin, eine Benachrichtigung über `/notify` löst einen Lauf aus, der nichts doppelt liefert, und das Log enthält weder Passwort noch IBAN, Zweck oder Namen.

@@ -99,6 +99,10 @@ public final class ConfigurationCheck {
     } else {
       check(prefix + ".certificate", () -> TlsContexts.pinned(hibiscus.certificate()), problems);
     }
+    if (hibiscus.username() == null || hibiscus.username().isBlank()) {
+      problems.add(
+          prefix + ".username must not be empty: Hibiscus Server refuses an empty user name");
+    }
     secret(prefix + ".password-file", hibiscus.passwordFile(), problems);
     positive(prefix + ".connect-timeout", hibiscus.connectTimeout(), problems);
     positive(prefix + ".request-timeout", hibiscus.requestTimeout(), problems);

@@ -21,6 +21,17 @@ repositories {
     mavenCentral()
 }
 
+// The integration tests run Bankbote against real servers in containers. They have their own source
+// set and tasks, outside the coverage gate of the unit tests, and reuse the fake servers of the unit
+// tests.
+val integrationTest: SourceSet by sourceSets.creating {
+    compileClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+    runtimeClasspath += sourceSets.main.get().output + sourceSets.test.get().output
+}
+
+configurations[integrationTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[integrationTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
+
 dependencies {
     // The Spring Boot BOM pins every version below that carries none.
     implementation(platform(SpringBootPlugin.BOM_COORDINATES))
@@ -31,6 +42,10 @@ dependencies {
     testImplementation(platform(SpringBootPlugin.BOM_COORDINATES))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    "integrationTestImplementation"("org.testcontainers:testcontainers")
+    "integrationTestImplementation"("org.testcontainers:testcontainers-junit-jupiter")
+    "integrationTestRuntimeOnly"("org.mariadb.jdbc:mariadb-java-client")
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -41,7 +56,7 @@ tasks.withType<JavaCompile>().configureEach {
 
 // Every warning of the own sources is an error; the sources Spring generates for the native image
 // are compiled without that rule, as their raw types are not ours to fix.
-listOf("compileJava", "compileTestJava").forEach { name ->
+listOf("compileJava", "compileTestJava", "compileIntegrationTestJava").forEach { name ->
     tasks.named<JavaCompile>(name) {
         options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-processing", "-Xlint:-serial", "-Werror"))
     }
@@ -91,6 +106,41 @@ tasks.jacocoTestCoverageVerification {
 tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
 }
+
+// Every container image of the integration tests, the helper of Testcontainers included, is pinned by
+// tag and digest in this one file, which Dependabot keeps up to date. The tests read it; a variable
+// BANKBOTE_IMAGE_<NAME> overrides one image, such as a locally built Hibiscus Server.
+val integrationImages = file("src/integrationTest/images/Dockerfile")
+
+fun pinnedImage(name: String): String =
+    integrationImages.readLines()
+        .map { it.trim() }
+        .filter { it.startsWith("FROM ") }
+        .map { it.removePrefix("FROM ").substringBefore(" ") }
+        .single { it.substringBefore("@").substringBeforeLast(":").endsWith("/$name") || it.startsWith("$name:") }
+
+fun registerIntegrationTests(name: String, tag: String, text: String) =
+    tasks.register<Test>(name) {
+        description = text
+        group = "verification"
+        testClassesDirs = integrationTest.output.classesDirs
+        classpath = integrationTest.runtimeClasspath
+        useJUnitPlatform { includeTags(tag) }
+        shouldRunAfter(tasks.test)
+        inputs.file(integrationImages)
+        systemProperty("bankbote.images", integrationImages.absolutePath)
+        environment("TESTCONTAINERS_RYUK_CONTAINER_IMAGE", pinnedImage("ryuk"))
+        testLogging {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        }
+    }
+
+registerIntegrationTests(
+    "hibiscusTest",
+    "hibiscus",
+    "Runs Bankbote against a real Hibiscus Server with MariaDB in containers.",
+)
 
 spotless {
     java {

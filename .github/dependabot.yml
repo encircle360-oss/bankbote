@@ -43,6 +43,20 @@ updates:
         update-types: ['version-update:semver-major']
     labels: []
 
+  # The images of the integration tests, by tag and digest.
+  - package-ecosystem: docker
+    directory: /src/integrationTest/images
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      # The database follows what the image of Hibiscus Server is tested with; a new major version is
+      # a decision.
+      - dependency-name: mariadb
+        update-types: ['version-update:semver-major']
+    labels: []
+
   - package-ecosystem: pip
     directory: /
     multi-ecosystem-group: development-tools

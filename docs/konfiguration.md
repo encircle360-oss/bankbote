@@ -34,7 +34,7 @@ Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer
 | `bankbote.backfill-from` | – | erster Buchungstag des ersten Laufs nach dem Start, `JJJJ-MM-TT`, nicht in der Zukunft. Danach gilt wieder `lookback-days`. Siehe [Nachholen](betrieb.md#nachholen) |
 | `bankbote.time-zone` | `Europe/Berlin` | Zeitzone, die bestimmt, welcher Tag heute ist, für Fenster und Zeitplan |
 | `bankbote.schedule` | `0 0 * * * *` | Zeitplan als Cron-Ausdruck von Spring (Sekunde, Minute, Stunde, Tag, Monat, Wochentag), `-` für keinen |
-| `bankbote.notify-delay` | `60s` | Wartezeit nach einer Benachrichtigung des Hibiscus Servers, nicht negativ |
+| `bankbote.notify-delay` | `60s` | Wartezeit nach einer Benachrichtigung des Hibiscus Servers und vor der einmaligen Wiederholung eines Laufs, der die Quelle nicht lesen konnte; nicht negativ |
 
 ## Hibiscus Server
 
@@ -42,7 +42,7 @@ Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer
 |---|---|---|
 | `bankbote.hibiscus.url` | – | Basisadresse, etwa `https://127.0.0.1:8080`. Nur `https`, ohne Benutzer, Abfrage oder Fragment. Ein Pfad bleibt erhalten |
 | `bankbote.hibiscus.certificate` | – | PEM-Datei mit genau einem Zertifikat, dem des Servers. Bankbote vertraut nur ihm und prüft den Namen darin nicht |
-| `bankbote.hibiscus.username` | `admin` | Benutzername; der Hibiscus Server prüft nur das Passwort |
+| `bankbote.hibiscus.username` | `admin` | Benutzername; der Hibiscus Server nimmt jeden außer einem leeren und prüft nur das Passwort. Nicht leer |
 | `bankbote.hibiscus.password-file` | – | Datei mit dem Master-Passwort in einer Zeile; ein Zeilenende am Schluss wird ignoriert |
 | `bankbote.hibiscus.connect-timeout` | `10s` | Zeitlimit für den Verbindungsaufbau, positiv |
 | `bankbote.hibiscus.request-timeout` | `120s` | Zeitlimit für eine Antwort, positiv |

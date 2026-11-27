@@ -46,6 +46,11 @@ public final class FakeHibiscus implements AutoCloseable {
     return server;
   }
 
+  /** The handler that answers as Hibiscus Server, for a test that puts another one in front. */
+  public FakeHttpServer.Handler handlerForTests() {
+    return this::handle;
+  }
+
   public FakeHibiscus account(String id, String iban) {
     accounts.add(
         Map.of("id", id, "iban", iban, "waehrung", "EUR", "kontonummer", id, "blz", "12345678"));
