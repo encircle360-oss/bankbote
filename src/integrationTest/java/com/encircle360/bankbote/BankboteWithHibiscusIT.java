@@ -8,6 +8,7 @@ import com.encircle360.bankbote.delivery.RunCoordinator;
 import com.encircle360.bankbote.delivery.RunReport;
 import com.encircle360.bankbote.integration.HibiscusFixtures;
 import com.encircle360.bankbote.integration.HibiscusServer;
+import com.encircle360.bankbote.integration.ServerLogOnFailure;
 import com.encircle360.bankbote.testing.FakeErpNext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,6 +52,10 @@ class BankboteWithHibiscusIT {
 
   @TempDir static Path dir;
   static HibiscusServer hibiscus;
+
+  @RegisterExtension
+  static final ServerLogOnFailure LOG_ON_FAILURE = new ServerLogOnFailure(() -> hibiscus);
+
   static FakeErpNext erpA;
   static FakeErpNext erpB;
   static String booked;

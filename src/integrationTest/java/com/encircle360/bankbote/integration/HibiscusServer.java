@@ -19,10 +19,6 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -187,47 +183,6 @@ public final class HibiscusServer implements AutoCloseable {
     return certificate.get();
   }
 
-  /**
-   * The certificate the server presents in the TLS handshake, read without trusting it, as {@code
-   * openssl s_client} or {@code keytool -printcert -sslserver} read it.
-   */
-  public X509Certificate presentedCertificate() {
-    AtomicReference<X509Certificate> presented = new AtomicReference<>();
-    TrustManager recorder =
-        new X509TrustManager() {
-          @Override
-          public void checkClientTrusted(X509Certificate[] chain, String authType) {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            presented.set(chain[0]);
-          }
-
-          @Override
-          public X509Certificate[] getAcceptedIssuers() {
-            return new X509Certificate[0];
-          }
-        };
-    try {
-      SSLContext context = SSLContext.getInstance("TLS");
-      context.init(null, new TrustManager[] {recorder}, null);
-      try (SSLSocket socket =
-          (SSLSocket)
-              context
-                  .getSocketFactory()
-                  .createSocket(server.getHost(), server.getMappedPort(8080))) {
-        socket.startHandshake();
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    } catch (GeneralSecurityException e) {
-      throw new IllegalStateException(e);
-    }
-    return presented.get();
-  }
-
   /** Writes a certificate as PEM. */
   public static Path writePem(X509Certificate certificate, Path file) {
     try {
@@ -243,9 +198,31 @@ public final class HibiscusServer implements AutoCloseable {
     }
   }
 
-  /** The log of the server so far. */
+  /** The log of the server on stdout so far. */
   public String logs() {
     return server.getLogs();
+  }
+
+  /**
+   * The last lines of the full log of Jameica, {@code /data/jameica.log}, with both passwords
+   * masked, for the report of a failed test.
+   */
+  public String jameicaLog(int lines) {
+    AtomicReference<String> log = new AtomicReference<>("");
+    try {
+      server.copyFileFromContainer(
+          "/data/jameica.log",
+          (InputStream in) -> {
+            log.set(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+            return null;
+          });
+    } catch (RuntimeException e) {
+      return "(the log of Jameica cannot be read: " + e.getClass().getSimpleName() + ")";
+    }
+    java.util.List<String> all = log.get().lines().toList();
+    return String.join("\n", all.subList(Math.max(0, all.size() - lines), all.size()))
+        .replace(masterPassword, "****")
+        .replace(databasePassword, "****");
   }
 
   @Override

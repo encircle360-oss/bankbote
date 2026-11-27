@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.encircle360.bankbote.integration.HibiscusFixtures;
 import com.encircle360.bankbote.integration.HibiscusServer;
+import com.encircle360.bankbote.integration.ServerLogOnFailure;
 import com.encircle360.bankbote.secret.Secret;
 import com.encircle360.bankbote.source.SourceAccount;
 import com.encircle360.bankbote.source.SourceEntries;
@@ -35,6 +36,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 
@@ -51,6 +53,10 @@ class HibiscusServerIT {
 
   @TempDir static Path dir;
   static HibiscusServer server;
+
+  @RegisterExtension
+  static final ServerLogOnFailure LOG_ON_FAILURE = new ServerLogOnFailure(() -> server);
+
   static HibiscusFixtures fixtures;
   static Path certificate;
   static Path password;
@@ -121,15 +127,19 @@ class HibiscusServerIT {
   }
 
   @Test
-  void thePresentedCertificateIsTheOneInTheKeyStoreWithTheConfiguredNameAndNoAlternativeName()
+  void presentsTheCertificateOfItsKeyStoreWithTheConfiguredNameAndNoAlternativeName()
       throws Exception {
     X509Certificate stored = server.certificateFromKeyStore();
-    X509Certificate presented = server.presentedCertificate();
 
-    assertThat(presented).isEqualTo(stored);
-    assertThat(presented.getSubjectX500Principal().getName())
-        .contains("CN=" + HibiscusServer.CERTIFICATE_HOSTNAME);
-    assertThat(presented.getSubjectAlternativeNames()).isNull();
+    // The pinned context accepts the server only if it presents exactly this certificate.
+    HttpResponse<String> response =
+        raw("/webadmin/rest/hibiscus/konto/list", basic("admin", server.masterPassword()));
+
+    assertThat(response.statusCode()).isEqualTo(200);
+    assertThat(stored.getSubjectX500Principal().getName())
+        .contains("CN=" + HibiscusServer.CERTIFICATE_HOSTNAME)
+        .contains("O=Jameica Certificate");
+    assertThat(stored.getSubjectAlternativeNames()).isNull();
   }
 
   @Test
