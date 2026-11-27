@@ -129,18 +129,18 @@ class ErpNextIT {
         "");
   }
 
-  private static int status(String method, String path) throws Exception {
+  private static int status(String method, String path, String body) throws Exception {
     try (HttpClient http = HttpClient.newHttpClient()) {
       HttpRequest.Builder request =
           HttpRequest.newBuilder(server.url().resolve(path))
               .header("Authorization", "token " + key.key() + ":" + key.secret())
               .header("Accept", "application/json");
-      if (method.equals("GET")) {
-        request.GET();
+      if (body == null) {
+        request.method(method, HttpRequest.BodyPublishers.noBody());
       } else {
         request
             .header("Content-Type", "application/json")
-            .method(method, HttpRequest.BodyPublishers.ofString("{\"iban\":\"" + B1 + "\"}"));
+            .method(method, HttpRequest.BodyPublishers.ofString(body));
       }
       return http.send(request.build(), HttpResponse.BodyHandlers.discarding()).statusCode();
     }
@@ -183,7 +183,7 @@ class ErpNextIT {
   }
 
   @Test
-  void submitsADraftWithPut() throws Exception {
+  void aDraftCanBeSubmittedWithPutButNotWithTheNarrowKey() throws Exception {
     String draft =
         admin
             .insert(
@@ -198,9 +198,39 @@ class ErpNextIT {
             .asString();
     assertThat(admin.get("Bank Transaction", draft).path("docstatus").asInt()).isZero();
 
-    client().submit(draft);
+    assertThat(status("PUT", FrappeAdmin.resource("Bank Transaction", draft), "{\"docstatus\":1}"))
+        .isEqualTo(403);
+    assertThat(admin.get("Bank Transaction", draft).path("docstatus").asInt()).isZero();
 
+    admin.update("Bank Transaction", draft, Map.of("docstatus", 1));
     assertThat(admin.get("Bank Transaction", draft).path("docstatus").asInt()).isEqualTo(1);
+  }
+
+  @Test
+  void reportsADraftThatHoldsTheTransactionIdAndDoesNotDuplicateIt() throws Exception {
+    admin.insert(
+        "Bank Transaction",
+        Map.of(
+            "date", "2026-11-24",
+            "bank_account", accountA2,
+            "currency", "EUR",
+            "deposit", 1,
+            "transaction_id", "hibiscus:2101"));
+    Delivery delivery =
+        new Delivery(
+            source(A2, List.of(booked("2101", "1.00", "Entwurf", "Beispiel"))),
+            "hibiscus",
+            List.of(new Route(Iban.parse(A2), "company-a")),
+            List.of(client()),
+            CLOCK);
+
+    AccountReport report =
+        delivery.run(LocalDate.now(CLOCK).minusDays(14)).targets().getFirst().accounts().getFirst();
+
+    assertThat(report.failed()).isEqualTo(1);
+    assertThat(report.error())
+        .isEqualTo("ERPNext company-a holds hibiscus:2101 as a draft; submit or delete it there");
+    assertThat(client().existing(accountA2, List.of("hibiscus:2101"))).hasSize(1);
   }
 
   @Test
@@ -248,7 +278,7 @@ class ErpNextIT {
         name,
         "DE06123456780000000005",
         "x".repeat(140),
-        "r".repeat(140));
+        "r".repeat(300));
   }
 
   @Test
@@ -275,6 +305,8 @@ class ErpNextIT {
             CLOCK);
 
     RunReport first = delivery.run(LocalDate.now(CLOCK).minusDays(14));
+    assertThat(first.targets().getFirst().accounts().getFirst())
+        .isEqualTo(new AccountReport("DE17…0001", 3, 3, 0, 0, 0, null));
     List<ExistingTransaction> delivered =
         client().existing(accountA1, List.of("hibiscus:5001", "hibiscus:5002", "hibiscus:5003"));
     String cancel =
@@ -286,8 +318,6 @@ class ErpNextIT {
     admin.call("frappe.client.cancel", Map.of("doctype", "Bank Transaction", "name", cancel));
     RunReport second = delivery.run(LocalDate.now(CLOCK).minusDays(14));
 
-    assertThat(first.targets().getFirst().accounts().getFirst())
-        .isEqualTo(new AccountReport("DE17…0001", 3, 3, 0, 0, 0, null));
     assertThat(second.targets().getFirst().accounts().getFirst())
         .isEqualTo(new AccountReport("DE17…0001", 3, 0, 3, 0, 0, null));
     assertThat(delivered).hasSize(3).allSatisfy(t -> assertThat(t.docstatus()).isEqualTo(1));
@@ -301,8 +331,8 @@ class ErpNextIT {
                 .name());
     assertThat(stored.path("description").asString()).isEqualTo(longPurpose);
     assertThat(stored.path("bank_party_name").asString()).isEqualTo(longName);
-    assertThat(stored.path("transaction_type").asString()).hasSize(140);
-    assertThat(stored.path("reference_number").asString()).hasSize(140);
+    assertThat(stored.path("transaction_type").asString()).hasSize(50);
+    assertThat(stored.path("reference_number").asString()).hasSize(300);
     assertThat(
             client()
                 .existing(accountA1, List.of("hibiscus:5001", "hibiscus:5002", "hibiscus:5003")))
@@ -310,22 +340,29 @@ class ErpNextIT {
   }
 
   @Test
-  void theNarrowKeyReadsNothingElseAndChangesNothingElse() throws Exception {
-    assertThat(status("GET", FrappeAdmin.resource("Sales Invoice"))).isEqualTo(403);
-    assertThat(status("GET", FrappeAdmin.resource("User"))).isEqualTo(403);
-    assertThat(status("GET", FrappeAdmin.resource("GL Entry"))).isEqualTo(403);
-    assertThat(status("GET", FrappeAdmin.resource("Customer"))).isEqualTo(403);
-    assertThat(status("GET", FrappeAdmin.resource("Account"))).isEqualTo(403);
-    assertThat(status("PUT", FrappeAdmin.resource("Bank Account", accountA1))).isEqualTo(403);
-    assertThat(status("DELETE", FrappeAdmin.resource("Bank Account", accountA1))).isEqualTo(403);
-    assertThat(status("POST", FrappeAdmin.resource("Bank Account"))).isEqualTo(403);
+  void theNarrowKeyReadsAndChangesNothingElseButTheNamesOfUsersAndCompanies() throws Exception {
+    assertThat(status("GET", FrappeAdmin.resource("Sales Invoice"), null)).isEqualTo(403);
+    assertThat(status("GET", FrappeAdmin.resource("GL Entry"), null)).isEqualTo(403);
+    assertThat(status("GET", FrappeAdmin.resource("Customer"), null)).isEqualTo(403);
+    assertThat(status("GET", FrappeAdmin.resource("Account"), null)).isEqualTo(403);
+    assertThat(status("GET", FrappeAdmin.resource("User", "Administrator"), null)).isEqualTo(403);
+    // Frappe lets every system user list the names of users and companies.
+    assertThat(status("GET", FrappeAdmin.resource("User"), null)).isEqualTo(200);
+    assertThat(status("GET", FrappeAdmin.resource("Company"), null)).isEqualTo(200);
+    String iban = "{\"iban\":\"" + B1 + "\"}";
+    assertThat(status("PUT", FrappeAdmin.resource("Bank Account", accountA1), iban)).isEqualTo(403);
+    assertThat(status("DELETE", FrappeAdmin.resource("Bank Account", accountA1), null))
+        .isEqualTo(403);
+    assertThat(status("POST", FrappeAdmin.resource("Bank Account"), iban)).isEqualTo(403);
     InsertedTransaction mine = client().insertSubmitted(document(accountA1, "hibiscus:6001"));
-    assertThat(status("DELETE", FrappeAdmin.resource("Bank Transaction", mine.name())))
+    assertThat(status("DELETE", FrappeAdmin.resource("Bank Transaction", mine.name()), null))
         .isEqualTo(403);
     assertThat(
             status(
                 "POST",
-                "/api/method/frappe.client.cancel?doctype=Bank%20Transaction&name=" + mine.name()))
+                "/api/method/frappe.client.cancel",
+                "{\"doctype\":\"Bank Transaction\",\"name\":\"" + mine.name() + "\"}"))
         .isEqualTo(403);
+    assertThat(admin.get("Bank Transaction", mine.name()).path("docstatus").asInt()).isEqualTo(1);
   }
 }

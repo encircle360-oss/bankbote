@@ -55,6 +55,11 @@ public final class FrappeAdmin {
     return send("POST", resource(doctype), fields).path("data");
   }
 
+  /** Changes fields of a document as the desk does, which also submits a draft. */
+  public JsonNode update(String doctype, String name, Map<String, ?> fields) {
+    return send("PUT", resource(doctype, name), fields).path("data");
+  }
+
   public JsonNode get(String doctype, String name) {
     return send("GET", resource(doctype, name), null).path("data");
   }
