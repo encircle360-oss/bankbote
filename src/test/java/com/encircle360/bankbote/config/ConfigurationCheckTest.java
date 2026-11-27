@@ -404,4 +404,29 @@ class ConfigurationCheckTest {
             "bankbote.targets: the name company-a is used 2 times",
             "bankbote.accounts[0].target is missing");
   }
+
+  @Test
+  void refusesAnEmptyUserNameWhichHibiscusServerRejects() {
+    for (String username : new String[] {"", " ", null}) {
+      Hibiscus hibiscus =
+          new Hibiscus(URI.create("https://127.0.0.1:8080"), pem, username, password, TEN, TEN);
+
+      assertThat(
+              problems(
+                  new BankboteProperties(
+                      "hibiscus",
+                      14,
+                      null,
+                      "Europe/Berlin",
+                      "-",
+                      Duration.ZERO,
+                      hibiscus,
+                      List.of(target("company-a", "https://erp-a.example.com")),
+                      List.of(new Account(A1, "company-a")))))
+          .as(String.valueOf(username))
+          .containsExactly(
+              "bankbote.hibiscus.username must not be empty: Hibiscus Server refuses an empty user"
+                  + " name");
+    }
+  }
 }
