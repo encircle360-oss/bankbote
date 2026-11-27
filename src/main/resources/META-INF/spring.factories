@@ -1,0 +1,2 @@
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+com.encircle360.bankbote.config.InvalidConfigurationFailureAnalyzer

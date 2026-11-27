@@ -32,9 +32,9 @@ import org.slf4j.LoggerFactory;
  * One run: reads the accounts of the source, delivers the booked transactions of each mapped
  * account to its one target and leaves every other account alone.
  *
- * <p>Targets run side by side, each in its own virtual thread with its own client, so a target
- * that is down, slow or refuses its key delays and fails only its own accounts. Within a target
- * the accounts run one after another.
+ * <p>Targets run side by side, each in its own virtual thread with its own client, so a target that
+ * is down, slow or refuses its key delays and fails only its own accounts. Within a target the
+ * accounts run one after another.
  */
 public final class Delivery {
 
@@ -107,13 +107,12 @@ public final class Delivery {
   private List<UnmappedAccount> unmapped(
       Map<Iban, List<SourceAccount>> byIban, List<SourceAccount> withoutIban, LocalDate from) {
     List<UnmappedAccount> unmapped = new ArrayList<>();
-    byIban.forEach(
-        (iban, accounts) -> {
-          if (routes.stream().noneMatch(route -> route.iban().equals(iban))) {
-            accounts.forEach(
-                account -> unmapped.add(new UnmappedAccount(iban.masked(), account.id(), found(account, from))));
-          }
-        });
+    byIban.forEach((iban, accounts) -> {
+      if (routes.stream().noneMatch(route -> route.iban().equals(iban))) {
+        accounts.forEach(account ->
+            unmapped.add(new UnmappedAccount(iban.masked(), account.id(), found(account, from))));
+      }
+    });
     withoutIban.forEach(account -> unmapped.add(new UnmappedAccount("none", account.id(), 0)));
     return unmapped;
   }
@@ -176,10 +175,12 @@ public final class Delivery {
       tally.failed = entries.unreadable().size();
       entries
           .unreadable()
-          .forEach(
-              entry ->
-                  LOG.warn(
-                      "transaction {} of account {} cannot be read: {}", entry.id(), iban, entry.reason()));
+          .forEach(entry ->
+              LOG.warn(
+                  "transaction {} of account {} cannot be read: {}",
+                  entry.id(),
+                  iban,
+                  entry.reason()));
       if (!entries.unreadable().isEmpty()) {
         tally.error = entries.unreadable().size() + " transaction(s) cannot be read at the source";
       }
@@ -206,7 +207,9 @@ public final class Delivery {
             target
                 .existing(
                     bankAccount,
-                    booked.stream().map(t -> BankTransactionMapper.transactionId(sourceKey, t.id())).toList())
+                    booked.stream()
+                        .map(t -> BankTransactionMapper.transactionId(sourceKey, t.id()))
+                        .toList())
                 .stream()
                 .collect(Collectors.groupingBy(ExistingTransaction::transactionId));
         for (SourceTransaction transaction : booked) {
@@ -216,7 +219,11 @@ public final class Delivery {
             if (e.stopsTheTarget() || e.kind() == ErpNextException.Kind.UNAVAILABLE) {
               throw e;
             }
-            LOG.warn("transaction {} of account {} was not delivered: {}", transaction.id(), tally.iban, e.getMessage());
+            LOG.warn(
+                "transaction {} of account {} was not delivered: {}",
+                transaction.id(),
+                tally.iban,
+                e.getMessage());
             tally.failed++;
             tally.error = e.getMessage();
           }
@@ -244,7 +251,8 @@ public final class Delivery {
       List<ExistingTransaction> held = existing.getOrDefault(id, List.of());
       if (held.stream().anyMatch(doc -> doc.docstatus() != 0)) {
         if (held.size() > 1) {
-          LOG.warn("transaction id {} is held {} times by target {}", id, held.size(), target.target());
+          LOG.warn(
+              "transaction id {} is held {} times by target {}", id, held.size(), target.target());
         }
         tally.existing++;
         return;
@@ -256,7 +264,8 @@ public final class Delivery {
         return;
       }
       InsertedTransaction inserted =
-          target.insertSubmitted(BankTransactionMapper.map(transaction, sourceKey, bankAccount, currency));
+          target.insertSubmitted(
+              BankTransactionMapper.map(transaction, sourceKey, bankAccount, currency));
       if (inserted.docstatus() == 0) {
         target.submit(inserted.name());
       } else if (inserted.docstatus() != 1) {

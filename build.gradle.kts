@@ -86,7 +86,8 @@ tasks.check {
 
 spotless {
     java {
-        googleJavaFormat("1.37.0")
+        target("src/*/java/**/*.java")
+        googleJavaFormat("2.0.0")
         removeUnusedImports()
         trimTrailingWhitespace()
         endWithNewline()
@@ -109,4 +110,11 @@ graalvmNative {
     metadataRepository {
         enabled = true
     }
+}
+
+// The tests run on the JVM against local fake servers whose addresses exist only while a test runs,
+// so their application contexts cannot be prepared ahead of time; the native image is built from
+// the main sources alone.
+tasks.named("processTestAot") {
+    enabled = false
 }

@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: bankbote
+  main:
+    banner-mode: off
+
+# Bankbote listens on the loopback address only: the Hibiscus Server next to it in the same
+# network namespace notifies it, nothing else needs to reach it. See docs/sicherheit.md.
+server:
+  address: 127.0.0.1
+  port: 8089
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: false
+
+bankbote:
+  source-key: hibiscus
+  lookback-days: 14
+  time-zone: Europe/Berlin
+  schedule: "0 0 * * * *"
+  notify-delay: 60s

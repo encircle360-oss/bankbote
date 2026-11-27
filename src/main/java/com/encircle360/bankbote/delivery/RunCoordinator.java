@@ -34,7 +34,8 @@ public final class RunCoordinator implements AutoCloseable {
   private final Duration notifyDelay;
   private final Consumer<RunReport> listener;
   private final ExecutorService worker =
-      Executors.newSingleThreadExecutor(Thread.ofPlatform().name("bankbote-run").daemon().factory());
+      Executors.newSingleThreadExecutor(
+          Thread.ofPlatform().name("bankbote-run").daemon().factory());
   private final ScheduledExecutorService timer =
       Executors.newSingleThreadScheduledExecutor(
           Thread.ofPlatform().name("bankbote-notify").daemon().factory());

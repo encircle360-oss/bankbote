@@ -12,6 +12,8 @@ public interface TransactionSource {
   /** All accounts the source holds. */
   List<SourceAccount> accounts() throws SourceException;
 
-  /** The transactions of an account booked on {@code from} or later, pending ones marked as such. */
+  /**
+   * The transactions of an account booked on {@code from} or later, pending ones marked as such.
+   */
   SourceEntries transactions(SourceAccount account, LocalDate from) throws SourceException;
 }

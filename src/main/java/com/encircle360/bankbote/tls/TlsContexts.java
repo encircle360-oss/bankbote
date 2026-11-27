@@ -20,8 +20,8 @@ public final class TlsContexts {
   private TlsContexts() {}
 
   /**
-   * A context that trusts exactly one certificate and nothing else, whatever host name it names.
-   * A Hibiscus Server makes its own certificate, usually without the name it is reached by; the
+   * A context that trusts exactly one certificate and nothing else, whatever host name it names. A
+   * Hibiscus Server makes its own certificate, usually without the name it is reached by; the
    * comparison with the configured certificate replaces the check of the name.
    */
   public static SSLContext pinned(Path pem) {
@@ -45,7 +45,7 @@ public final class TlsContexts {
     if (certificates.isEmpty()) {
       throw new TlsConfigurationException("certificate file " + pem + " holds no certificate");
     }
-    try {
+    return jdk(() -> {
       KeyStore store = KeyStore.getInstance(KeyStore.getDefaultType());
       store.load(null, null);
       for (int i = 0; i < certificates.size(); i++) {
@@ -55,18 +55,12 @@ public final class TlsContexts {
           TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
       factory.init(store);
       return context(factory.getTrustManagers());
-    } catch (GeneralSecurityException | IOException e) {
-      throw new IllegalStateException("the JDK cannot build a trust store", e);
-    }
+    });
   }
 
   /** The default context of the JDK with the certificate authorities of the system. */
   public static SSLContext system() {
-    try {
-      return SSLContext.getDefault();
-    } catch (GeneralSecurityException e) {
-      throw new IllegalStateException("the JDK has no default TLS context", e);
-    }
+    return jdk(SSLContext::getDefault);
   }
 
   /** The certificates of a PEM file, in their order. */
@@ -84,12 +78,24 @@ public final class TlsContexts {
   }
 
   private static SSLContext context(TrustManager[] trustManagers) {
-    try {
+    return jdk(() -> {
       SSLContext context = SSLContext.getInstance("TLS");
       context.init(null, trustManagers, null);
       return context;
-    } catch (GeneralSecurityException e) {
-      throw new IllegalStateException("the JDK cannot build a TLS context", e);
+    });
+  }
+
+  /** A call into the TLS of the JDK, which fails only on a JDK without TLS. */
+  @FunctionalInterface
+  interface JdkCall<T> {
+    T call() throws GeneralSecurityException, IOException;
+  }
+
+  static <T> T jdk(JdkCall<T> call) {
+    try {
+      return call.call();
+    } catch (GeneralSecurityException | IOException e) {
+      throw new IllegalStateException("the TLS of the JDK is not available", e);
     }
   }
 }

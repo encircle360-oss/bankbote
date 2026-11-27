@@ -18,8 +18,8 @@ public final class Secret {
   }
 
   /**
-   * Reads a secret from a file of one line. A trailing line break is dropped, as editors and
-   * {@code echo} add one; anything else in the file is part of the secret.
+   * Reads a secret from a file of one line. A trailing line break is dropped, as editors and {@code
+   * echo} add one; anything else in the file is part of the secret.
    */
   public static Secret fromFile(Path file) {
     if (file == null) {
@@ -31,9 +31,10 @@ public final class Secret {
     } catch (IOException e) {
       throw new SecretFileException("secret file " + file + " cannot be read");
     }
-    String value = content.endsWith("\r\n")
-        ? content.substring(0, content.length() - 2)
-        : content.endsWith("\n") ? content.substring(0, content.length() - 1) : content;
+    String value =
+        content.endsWith("\r\n")
+            ? content.substring(0, content.length() - 2)
+            : content.endsWith("\n") ? content.substring(0, content.length() - 1) : content;
     if (value.isEmpty()) {
       throw new SecretFileException("secret file " + file + " is empty");
     }

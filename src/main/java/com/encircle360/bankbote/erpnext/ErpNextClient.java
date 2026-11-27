@@ -94,7 +94,10 @@ public final class ErpNextClient {
   public List<CompanyBankAccount> companyBankAccounts() throws ErpNextException {
     List<CompanyBankAccount> accounts = new ArrayList<>();
     for (JsonNode row :
-        list(BANK_ACCOUNT, List.of(List.of("is_company_account", "=", 1)), List.of("name", "iban"))) {
+        list(
+            BANK_ACCOUNT,
+            List.of(List.of("is_company_account", "=", 1)),
+            List.of("name", "iban"))) {
       accounts.add(new CompanyBankAccount(text(row, "name"), text(row, "iban")));
     }
     return accounts;
@@ -111,7 +114,8 @@ public final class ErpNextClient {
           list(
               BANK_TRANSACTION,
               List.of(
-                  List.of("bank_account", "=", bankAccount), List.of("transaction_id", "in", chunk)),
+                  List.of("bank_account", "=", bankAccount),
+                  List.of("transaction_id", "in", chunk)),
               List.of("name", "transaction_id", "docstatus"))) {
         existing.add(
             new ExistingTransaction(
@@ -203,7 +207,8 @@ public final class ErpNextClient {
     }
     HttpResponse<String> response;
     try {
-      response = http.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+      response =
+          http.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new ErpNextException(
           Kind.UNAVAILABLE,
@@ -232,7 +237,7 @@ public final class ErpNextClient {
               + status
               + "), which Bankbote does not follow");
     }
-    if (status >= 500 || status < 200) {
+    if (status >= 500) {
       throw new ErpNextException(
           Kind.UNAVAILABLE, "ERPNext " + target + " is unavailable (HTTP " + status + ")");
     }
@@ -245,7 +250,12 @@ public final class ErpNextClient {
     if (status >= 400) {
       throw new ErpNextException(
           Kind.REJECTED,
-          "ERPNext " + target + " rejected the request (HTTP " + status + exceptionType(json) + ")");
+          "ERPNext "
+              + target
+              + " rejected the request (HTTP "
+              + status
+              + exceptionType(json)
+              + ")");
     }
     if (json == null || !json.isObject()) {
       throw unreadable();

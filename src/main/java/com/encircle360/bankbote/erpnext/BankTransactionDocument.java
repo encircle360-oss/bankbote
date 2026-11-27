@@ -7,8 +7,8 @@ import java.time.LocalDate;
  * The fields of a new Bank Transaction of ERPNext 16 that Bankbote fills. The company follows from
  * the bank account.
  *
- * <p>{@link #toString()} shows only the transaction id: description and party are personal data
- * and stay out of logs.
+ * <p>{@link #toString()} shows only the transaction id: description and party are personal data and
+ * stay out of logs.
  */
 public record BankTransactionDocument(
     LocalDate date,

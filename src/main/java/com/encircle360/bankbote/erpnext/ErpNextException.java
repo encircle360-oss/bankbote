@@ -1,14 +1,16 @@
 package com.encircle360.bankbote.erpnext;
 
 /**
- * A request to an ERPNext failed. The message names the target and the HTTP status, never the
- * body of the answer, which can hold personal data, and never a credential.
+ * A request to an ERPNext failed. The message names the target and the HTTP status, never the body
+ * of the answer, which can hold personal data, and never a credential.
  */
 public class ErpNextException extends Exception {
 
   /** What went wrong, which decides whether Bankbote goes on with the target. */
   public enum Kind {
-    /** The target cannot be reached, times out, fails or redirects: the rest of the account waits. */
+    /**
+     * The target cannot be reached, times out, fails or redirects: the rest of the account waits.
+     */
     UNAVAILABLE,
     /** The target refuses the API key: nothing more goes to it in this run. */
     AUTHENTICATION,

@@ -82,7 +82,8 @@ public final class ConfigurationCheck {
       problems.add("bankbote.time-zone is not a time zone: " + properties.timeZone());
     }
     String schedule = properties.schedule();
-    if (!"-".equals(schedule) && (schedule == null || !CronExpression.isValidExpression(schedule))) {
+    if (!"-".equals(schedule)
+        && (schedule == null || !CronExpression.isValidExpression(schedule))) {
       problems.add("bankbote.schedule is neither a cron expression nor -");
     }
     if (properties.notifyDelay() == null || properties.notifyDelay().isNegative()) {
@@ -135,29 +136,29 @@ public final class ConfigurationCheck {
         targets.stream()
             .map(Target::name)
             .filter(Objects::nonNull)
-            .collect(Collectors.groupingBy(name -> name, LinkedHashMap::new, Collectors.counting()));
-    counts.forEach(
-        (name, count) -> {
-          if (count > 1) {
-            problems.add("bankbote.targets: the name " + name + " is used " + count + " times");
-          }
-        });
+            .collect(
+                Collectors.groupingBy(name -> name, LinkedHashMap::new, Collectors.counting()));
+    counts.forEach((name, count) -> {
+      if (count > 1) {
+        problems.add("bankbote.targets: the name " + name + " is used " + count + " times");
+      }
+    });
     for (Target target : targets) {
       if (target.url() == null || target.name() == null) {
         continue;
       }
       String site = site(target.url());
       urls.entrySet().stream()
-          .filter(entry -> site(entry.getValue()).equals(site) && !entry.getKey().equals(target.name()))
+          .filter(
+              entry -> site(entry.getValue()).equals(site) && !entry.getKey().equals(target.name()))
           .findFirst()
-          .ifPresent(
-              entry ->
-                  problems.add(
-                      "bankbote.targets: "
-                          + entry.getKey()
-                          + " and "
-                          + target.name()
-                          + " point at the same ERPNext"));
+          .ifPresent(entry ->
+              problems.add(
+                  "bankbote.targets: "
+                      + entry.getKey()
+                      + " and "
+                      + target.name()
+                      + " point at the same ERPNext"));
       urls.putIfAbsent(target.name(), target.url());
     }
     return counts.keySet();
@@ -165,12 +166,18 @@ public final class ConfigurationCheck {
 
   /** The address of a site without the case of its host and a trailing slash. */
   private static String site(URI url) {
-    String text = url.getScheme() + "://" + Objects.toString(url.getHost(), "").toLowerCase(Locale.ROOT)
-        + ":" + url.getPort() + Objects.toString(url.getRawPath(), "");
+    String text =
+        url.getScheme()
+            + "://"
+            + Objects.toString(url.getHost(), "").toLowerCase(Locale.ROOT)
+            + ":"
+            + url.getPort()
+            + Objects.toString(url.getRawPath(), "");
     return text.endsWith("/") ? text.substring(0, text.length() - 1) : text;
   }
 
-  private static void accounts(List<Account> accounts, Set<String> targetNames, List<String> problems) {
+  private static void accounts(
+      List<Account> accounts, Set<String> targetNames, List<String> problems) {
     if (accounts.isEmpty()) {
       problems.add("bankbote.accounts is empty");
     }
@@ -190,16 +197,19 @@ public final class ConfigurationCheck {
         problems.add(prefix + ".target is missing");
       } else if (!targetNames.contains(account.target())) {
         problems.add(
-            prefix + " (" + iban.masked() + ") is mapped to the unknown target " + account.target());
+            prefix
+                + " ("
+                + iban.masked()
+                + ") is mapped to the unknown target "
+                + account.target());
       }
     }
-    counts.forEach(
-        (iban, count) -> {
-          if (count > 1) {
-            problems.add(
-                "bankbote.accounts: the account " + iban.masked() + " is mapped " + count + " times");
-          }
-        });
+    counts.forEach((iban, count) -> {
+      if (count > 1) {
+        problems.add(
+            "bankbote.accounts: the account " + iban.masked() + " is mapped " + count + " times");
+      }
+    });
   }
 
   private static void url(

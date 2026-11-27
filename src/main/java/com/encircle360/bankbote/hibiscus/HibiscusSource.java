@@ -51,8 +51,8 @@ public final class HibiscusSource implements TransactionSource {
 
   /**
    * The bean gives the transactions booked since the start of the day {@code n} days ago, as the
-   * clock of the server sees it; one more day than the window needs covers a server in another
-   * time zone, and the transactions before the window are dropped here.
+   * clock of the server sees it; one more day than the window needs covers a server in another time
+   * zone, and the transactions before the window are dropped here.
    */
   @Override
   public SourceEntries transactions(SourceAccount account, LocalDate from) throws SourceException {
@@ -69,7 +69,9 @@ public final class HibiscusSource implements TransactionSource {
     long days = Math.max(1, ChronoUnit.DAYS.between(from, LocalDate.now(clock)) + 1);
     if (days > MAX_DAYS) {
       throw new SourceException(
-          "Hibiscus Server gives at most " + MAX_DAYS + " days of transactions, the window needs "
+          "Hibiscus Server gives at most "
+              + MAX_DAYS
+              + " days of transactions, the window needs "
               + days);
     }
     JsonNode list = client.list("hibiscus/konto/" + account.id() + "/umsaetze/days/" + days);

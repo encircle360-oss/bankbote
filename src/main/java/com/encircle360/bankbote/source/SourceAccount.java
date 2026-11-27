@@ -19,6 +19,10 @@ public record SourceAccount(String id, String iban, String currency) {
 
   @Override
   public String toString() {
-    return "SourceAccount[id=" + id + ", iban=" + validIban().map(Iban::masked).orElse("none") + "]";
+    return "SourceAccount[id="
+        + id
+        + ", iban="
+        + validIban().map(Iban::masked).orElse("none")
+        + "]";
   }
 }

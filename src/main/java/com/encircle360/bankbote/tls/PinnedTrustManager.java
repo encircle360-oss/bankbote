@@ -44,19 +44,23 @@ final class PinnedTrustManager extends X509ExtendedTrustManager {
   @Override
   public void checkClientTrusted(X509Certificate[] chain, String authType)
       throws CertificateException {
-    throw new CertificateException("client certificates are not accepted");
+    throw clientsRefused();
+  }
+
+  private static CertificateException clientsRefused() {
+    return new CertificateException("client certificates are not accepted");
   }
 
   @Override
   public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket)
       throws CertificateException {
-    checkClientTrusted(chain, authType);
+    throw clientsRefused();
   }
 
   @Override
   public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
       throws CertificateException {
-    checkClientTrusted(chain, authType);
+    throw clientsRefused();
   }
 
   @Override

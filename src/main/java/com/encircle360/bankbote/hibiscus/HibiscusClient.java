@@ -1,6 +1,7 @@
 package com.encircle360.bankbote.hibiscus;
 
 import com.encircle360.bankbote.secret.Secret;
+import com.encircle360.bankbote.source.SourceException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -16,14 +17,12 @@ import javax.net.ssl.SSLContext;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import com.encircle360.bankbote.source.SourceException;
 
 /**
  * Reads the JSON beans of Hibiscus Server under {@code /webadmin/rest/}, with HTTP Basic
  * authentication of the master password, the only credential Hibiscus Server has.
  *
- * <p>Redirects are never followed, so the master password goes nowhere but the configured
- * address.
+ * <p>Redirects are never followed, so the master password goes nowhere but the configured address.
  */
 public final class HibiscusClient {
 
@@ -144,6 +143,9 @@ public final class HibiscusClient {
 
   private static SourceException unreachable(IOException e) {
     return new SourceException(
-        "Hibiscus Server cannot be reached: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        "Hibiscus Server cannot be reached: "
+            + e.getClass().getSimpleName()
+            + ": "
+            + e.getMessage());
   }
 }

@@ -20,10 +20,10 @@ import java.util.stream.Stream;
  * Reads the values of the JSON beans of Hibiscus Server.
  *
  * <p>The beans write every column with {@code toString()} of its Java value ({@code JsonUtil} and
- * {@code BeanUtil} of hibiscus.server and datasource): an amount as {@link Double#toString(double)},
- * such as {@code -1234.56} or {@code 1.2345678E7}, never in the format of a locale and never with
- * thousands separators; a date column as {@code java.sql.Date}, {@code yyyy-MM-dd}. Anything else
- * is refused rather than guessed.
+ * {@code BeanUtil} of hibiscus.server and datasource): an amount as {@link
+ * Double#toString(double)}, such as {@code -1234.56} or {@code 1.2345678E7}, never in the format of
+ * a locale and never with thousands separators; a date column as {@code java.sql.Date}, {@code
+ * yyyy-MM-dd}. Anything else is refused rather than guessed.
  */
 final class HibiscusValues {
 
@@ -90,9 +90,9 @@ final class HibiscusValues {
   }
 
   /**
-   * Whether a transaction is pending. Hibiscus stores the flags as a number and leaves them out
-   * of the JSON when the column is empty; a value that is no number is refused, so a transaction
-   * whose state is unclear is never taken for booked.
+   * Whether a transaction is pending. Hibiscus stores the flags as a number and leaves them out of
+   * the JSON when the column is empty; a value that is no number is refused, so a transaction whose
+   * state is unclear is never taken for booked.
    */
   static boolean pending(String flags) {
     if (flags == null || flags.isBlank()) {

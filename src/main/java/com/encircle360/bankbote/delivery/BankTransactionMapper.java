@@ -15,8 +15,8 @@ final class BankTransactionMapper {
   private BankTransactionMapper() {}
 
   /**
-   * The {@code transaction_id} of the Bank Transaction: the configured key of the source and the
-   * id of the transaction there. It stays the same for every run, which makes delivery idempotent.
+   * The {@code transaction_id} of the Bank Transaction: the configured key of the source and the id
+   * of the transaction there. It stays the same for every run, which makes delivery idempotent.
    */
   static String transactionId(String sourceKey, String sourceId) {
     return sourceKey + ":" + sourceId;
