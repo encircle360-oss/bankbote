@@ -258,17 +258,15 @@ public final class Delivery {
         return;
       }
       if (!held.isEmpty()) {
-        target.submit(held.getFirst().name());
-        LOG.info("submitted the draft {} of transaction id {}", held.getFirst().name(), id);
-        tally.delivered++;
-        return;
+        throw draft("holds", id);
       }
       InsertedTransaction inserted =
           target.insertSubmitted(
               BankTransactionMapper.map(transaction, sourceKey, bankAccount, currency));
       if (inserted.docstatus() == 0) {
-        target.submit(inserted.name());
-      } else if (inserted.docstatus() != 1) {
+        throw draft("kept", id);
+      }
+      if (inserted.docstatus() != 1) {
         throw new ErpNextException(
             ErpNextException.Kind.REJECTED,
             "ERPNext "
@@ -278,6 +276,22 @@ public final class Delivery {
                 + " for a new bank transaction");
       }
       tally.delivered++;
+    }
+
+    /**
+     * Submitting a draft needs the right to write bank transactions, which the service user does
+     * not have; a draft is therefore left to a person and reported, and never inserted again.
+     */
+    private ErpNextException draft(String verb, String id) {
+      return new ErpNextException(
+          ErpNextException.Kind.REJECTED,
+          "ERPNext "
+              + target.target()
+              + " "
+              + verb
+              + " "
+              + id
+              + " as a draft; submit or delete it there");
     }
 
     private String bankAccount(Iban iban) throws ErpNextException, Stop {

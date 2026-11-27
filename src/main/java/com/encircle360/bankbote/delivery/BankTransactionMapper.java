@@ -12,6 +12,9 @@ final class BankTransactionMapper {
   /** The length of a field of type Data in Frappe. */
   static final int DATA_LENGTH = 140;
 
+  /** The length of {@code transaction_type} in the DocType Bank Transaction of ERPNext 16. */
+  static final int TYPE_LENGTH = 50;
+
   private BankTransactionMapper() {}
 
   /**
@@ -32,17 +35,21 @@ final class BankTransactionMapper {
         bankAccount,
         currency,
         transaction.purpose(),
-        data(transaction.reference()),
+        transaction.reference(),
         transactionId(sourceKey, transaction.id()),
         amount.signum() > 0 ? amount : zero,
         amount.signum() < 0 ? amount.negate() : zero,
-        data(transaction.type()),
+        cut(transaction.type(), TYPE_LENGTH),
         data(transaction.counterpartyName()),
         partyIban.map(Iban::value).orElse(""),
         partyIban.isPresent() ? "" : data(transaction.counterpartyAccount()));
   }
 
   private static String data(String value) {
-    return value.length() > DATA_LENGTH ? value.substring(0, DATA_LENGTH) : value;
+    return cut(value, DATA_LENGTH);
+  }
+
+  private static String cut(String value, int length) {
+    return value.length() > length ? value.substring(0, length) : value;
   }
 }
