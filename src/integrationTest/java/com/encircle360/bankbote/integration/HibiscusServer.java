@@ -1,9 +1,13 @@
 package com.encircle360.bankbote.integration;
 
+import com.encircle360.bankbote.tls.TlsContexts;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +23,7 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.net.ssl.SSLContext;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -113,7 +118,55 @@ public final class HibiscusServer implements AutoCloseable {
       network.close();
       throw e;
     }
-    return new HibiscusServer(network, database, server, masterPassword, databasePassword);
+    HibiscusServer started =
+        new HibiscusServer(network, database, server, masterPassword, databasePassword);
+    started.awaitRestBeans(Duration.ofSeconds(60));
+    return started;
+  }
+
+  /**
+   * Waits until the JSON beans answer. The server registers them after its web server has started
+   * and after the entry point has reported every plugin as initialised; until then it answers
+   * {@code /webadmin/rest/…} with HTTP 500 and logs "no command found for REST url".
+   */
+  private void awaitRestBeans(Duration timeout) {
+    SSLContext pinned;
+    try {
+      Path pem = Files.createTempFile("hibiscus", ".pem");
+      writePem(certificateFromKeyStore(), pem);
+      pinned = TlsContexts.pinned(pem);
+      Files.delete(pem);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+    String authorization =
+        "Basic "
+            + Base64.getEncoder()
+                .encodeToString(("admin:" + masterPassword).getBytes(StandardCharsets.UTF_8));
+    long deadline = System.nanoTime() + timeout.toNanos();
+    try (HttpClient http = HttpClient.newBuilder().sslContext(pinned).build()) {
+      while (true) {
+        HttpResponse<Void> response =
+            http.send(
+                HttpRequest.newBuilder(url().resolve("/webadmin/rest/hibiscus/konto/list"))
+                    .header("Authorization", authorization)
+                    .build(),
+                HttpResponse.BodyHandlers.discarding());
+        if (response.statusCode() == 200) {
+          return;
+        }
+        if (System.nanoTime() > deadline) {
+          throw new IllegalStateException(
+              "the JSON beans still answer HTTP " + response.statusCode() + " after " + timeout);
+        }
+        Thread.sleep(100);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(e);
+    }
   }
 
   /** The server runs as uid 65532, which reads the files through the mount. */
