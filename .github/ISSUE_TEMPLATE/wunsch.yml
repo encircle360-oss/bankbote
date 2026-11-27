@@ -1,0 +1,29 @@
+name: Funktion vorschlagen
+description: Eine Quelle, ein Feld, ein Auslöser oder eine Funktion fehlt.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Welches Problem soll gelöst werden?
+    validations:
+      required: true
+  - type: textarea
+    id: vorschlag
+    attributes:
+      label: Vorschlag
+      description: Wie könnte die Lösung aussehen? Welche Dokumentation von Hibiscus oder ERPNext beschreibt das Verhalten?
+  - type: dropdown
+    id: bereich
+    attributes:
+      label: Bereich
+      options:
+        - Hibiscus Server als Quelle
+        - Weitere Quelle
+        - Zuordnung der Felder
+        - Zuordnung der Konten und Ziele
+        - Auslöser und Zeitplan
+        - Betrieb, Container und Health
+        - Sicherheit
+        - Dokumentation
+        - Sonstiges

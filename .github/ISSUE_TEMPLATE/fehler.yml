@@ -1,0 +1,31 @@
+name: Fehler melden
+description: Ein Umsatz kommt falsch, doppelt, gar nicht oder beim falschen Unternehmen an, oder Bankbote startet nicht.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bitte keine echten IBANs, Verwendungszwecke, Namen, Beträge, Master-Passwörter, API-Schlüssel, Zertifikate oder Hostnamen einfügen. Die Zusammenfassung eines Laufs aus dem Log oder dem Health-Endpunkt enthält nur maskierte IBANs und Zähler und darf so eingefügt werden; Beträge und Konten dürfen erfunden sein, solange der Fehler damit nachvollziehbar bleibt.
+  - type: textarea
+    id: beobachtet
+    attributes:
+      label: Was passiert?
+      description: Beobachtetes Verhalten, Fehlermeldung, Zusammenfassung des Laufs.
+    validations:
+      required: true
+  - type: textarea
+    id: erwartet
+    attributes:
+      label: Was sollte passieren?
+    validations:
+      required: true
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Schritte zum Nachstellen
+      description: Konfiguration ohne Geheimnisse, erfundene Umsätze, die den Fehler zeigen.
+  - type: input
+    id: versionen
+    attributes:
+      label: Versionen
+      description: Bankbote, Hibiscus Server, ERPNext.

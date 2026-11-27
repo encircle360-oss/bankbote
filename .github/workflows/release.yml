@@ -1,0 +1,100 @@
+name: Release
+
+# A tag vX.Y.Z publishes ghcr.io/encircle360-oss/bankbote:X.Y.Z and :X.Y for linux/amd64 and
+# linux/arm64 with SBOM and provenance, and a GitHub release with the section of the version from
+# CHANGELOG.md. Nothing else publishes.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the tag against the version of the build
+    if: github.repository == 'encircle360-oss/bankbote'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check that the tag names the version of build.gradle.kts and of CHANGELOG.md
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' build.gradle.kts)
+          if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
+            echo "::error::The tag $GITHUB_REF_NAME does not match the version $version of build.gradle.kts."
+            exit 1
+          fi
+          if ! grep -q "^## \[$version\] - " CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for $version."
+            exit 1
+          fi
+
+  image:
+    name: Image
+    needs: check
+    permissions:
+      contents: read
+      packages: write # push the image
+      id-token: write # sign the provenance attestation
+      attestations: write # store the provenance attestation
+    uses: $/.github/workflows/image.yml
+    with:
+      publish: true
+
+  release:
+    name: GitHub release
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the SBOMs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bankbote-*.spdx.json
+          path: ${{ runner.temp }}/sbom
+          merge-multiple: true
+
+      - name: Write the release notes
+        env:
+          TAGS: ${{ needs.image.outputs.tags }}
+        run: |
+          {
+            echo "Image: \`${TAGS//,/\`, \`}\`"
+            echo
+            awk -v version="${GITHUB_REF_NAME#v}" '
+              /^## / {
+                if (found) exit
+                heading = $2
+                gsub(/[][]/, "", heading)
+                found = heading == version
+                next
+              }
+              found
+            ' CHANGELOG.md
+          } > "$RUNNER_TEMP/notes.md"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sboms=()
+          for arch in amd64 arm64; do
+            sboms+=("$RUNNER_TEMP/bankbote-$GITHUB_REF_NAME-$arch.spdx.json")
+            mv "$RUNNER_TEMP/sbom/bankbote-$arch.spdx.json" "${sboms[-1]}"
+          done
+          gh release create "$GITHUB_REF_NAME" "${sboms[@]}" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"

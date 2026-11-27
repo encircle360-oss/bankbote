@@ -1,0 +1,51 @@
+exclude: '^(build|\.gradle|\.git)/'
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+        exclude: '\.bat$'
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
+        files: '^Containerfile$'
+        types: [file]
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.32.0
+    hooks:
+      - id: zizmor
+
+  # The Java sources and the build scripts are formatted by Spotless with google-java-format, the
+  # same check the tests run with ./gradlew check.
+  - repo: local
+    hooks:
+      - id: spotless
+        name: spotless (google-java-format)
+        entry: ./gradlew --quiet spotlessCheck
+        language: system
+        pass_filenames: false
+        files: '\.(java|kts)$'
