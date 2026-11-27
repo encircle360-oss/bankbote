@@ -36,7 +36,15 @@ dependencies {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release = 25
-    options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-processing", "-Xlint:-serial", "-Werror", "-parameters"))
+    options.compilerArgs.add("-parameters")
+}
+
+// Every warning of the own sources is an error; the sources Spring generates for the native image
+// are compiled without that rule, as their raw types are not ours to fix.
+listOf("compileJava", "compileTestJava").forEach { name ->
+    tasks.named<JavaCompile>(name) {
+        options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-processing", "-Xlint:-serial", "-Werror"))
+    }
 }
 
 tasks.test {
