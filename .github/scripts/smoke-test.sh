@@ -54,6 +54,11 @@ status=$(curl --silent --output /dev/null --write-out '%{http_code}' -X POST "ht
 [[ $status == 202 ]] || { echo "::error::POST /run answered $status"; exit 1; }
 
 logs=$(docker logs "$container" 2>&1)
+# The banner is a resource of the native image; without it the start prints no project address.
+grep -q 'https://github.com/encircle360-oss/bankbote' <<< "$logs" || {
+  echo "::error::the start banner is missing from the log"
+  exit 1
+}
 for secret in smoke-master-password smoke-key smoke-secret DE17123456780000000001; do
   if grep -q "$secret" <<< "$logs"; then
     echo "::error::the log shows $secret"
