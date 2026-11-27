@@ -2,7 +2,7 @@
 
 Bankbote liefert Kontoumsätze von einem [Hibiscus Server](https://github.com/willuhn/hibiscus.server) an ERPNext 16: Jeder gebuchte Umsatz eines Kontos wird ein eingereichter Bankumsatz (`Bank Transaction`) in der ERPNext-Installation des Unternehmens, dem das Konto gehört. Bankbote läuft dauerhaft neben dem Hibiscus Server, holt die neuen Umsätze nach jeder Synchronisierung und nach Zeitplan und schiebt sie über die REST-API von ERPNext an das richtige Unternehmen. ERPNext braucht dafür keine App und bekommt nie einen Zugang zum Hibiscus Server.
 
-> **Status: in Entwicklung, noch nicht einsatzfähig.** Bankbote ist gegen nachgebaute Server getestet und gegen einen laufenden Hibiscus Server mit Konten und Umsätzen, die der Test selbst in dessen Datenbank schreibt. **Gegen eine echte Bank und ein echtes ERPNext ist Bankbote noch nie gelaufen.** Was davon abhängt, steht unter [Was getestet ist und was nicht](#was-getestet-ist-und-was-nicht). Bitte noch nicht mit echten Konten betreiben, außer zum Ausprobieren mit einer Kopie von ERPNext.
+> **Status: in Entwicklung, noch nicht einsatzfähig.** Bankbote ist gegen nachgebaute Server getestet, gegen einen laufenden Hibiscus Server mit Konten und Umsätzen, die der Test selbst in dessen Datenbank schreibt, und gegen ein laufendes ERPNext 16 mit erfundenen Unternehmen, auch in der ganzen Kette. **Gegen eine echte Bank und ein produktives ERPNext ist Bankbote noch nie gelaufen.** Was davon abhängt, steht unter [Was getestet ist und was nicht](#was-getestet-ist-und-was-nicht). Bitte noch nicht mit echten Konten betreiben, außer zum Ausprobieren mit einer Kopie von ERPNext.
 
 ## Für wen
 
@@ -29,7 +29,7 @@ Für Unternehmen und Unternehmensgruppen, die ihre Konten mit Hibiscus Server ü
 1. **Auslösen.** Der Hibiscus Server ruft nach dem Abruf eines Kontos seine `notify.url` auf; Bankbote wartet eine einstellbare Zeit (vorgegeben 60 s), damit die Umsätze gespeichert sind, und startet dann einen Lauf. Dazu gibt es einen Lauf nach dem Start und einen nach Zeitplan (vorgegeben stündlich). Es läuft nie mehr als ein Lauf gleichzeitig.
 2. **Lesen.** Bankbote liest die Konten und je zugeordnetem Konto die Umsätze der letzten Tage (vorgegeben 14). Vorgemerkte Umsätze, die die Bank noch nicht gebucht hat, werden erkannt und nie geliefert.
 3. **Zuordnen.** Jedes Konto ist per IBAN genau einem Ziel zugeordnet. Bankbote sucht in diesem ERPNext das eine Bankkonto des Unternehmens mit dieser IBAN und liefert nicht, wenn es keines oder mehrere gibt. Konten ohne Zuordnung gehen nirgendwohin und stehen in der Zusammenfassung.
-4. **Liefern.** Jeder Umsatz bekommt eine feste `transaction_id`, etwa `hibiscus:4711`. Was ERPNext mit dieser Kennung schon hat, wird übersprungen; ein liegengebliebener Entwurf wird eingereicht. Zweimal laufen, überlappende Zeiträume und ein Absturz mitten im Lauf erzeugen keine Dubletten.
+4. **Liefern.** Jeder Umsatz bekommt eine feste `transaction_id`, etwa `hibiscus:4711`. Was ERPNext mit dieser Kennung schon hat, wird übersprungen; ein Entwurf mit dieser Kennung wird gemeldet, nicht doppelt angelegt. Zweimal laufen, überlappende Zeiträume und ein Absturz mitten im Lauf erzeugen keine Dubletten.
 5. **Berichten.** Jeder Lauf endet mit einer Zusammenfassung je Ziel und Konto (gefunden, geliefert, schon vorhanden, vorgemerkt, fehlgeschlagen) im Log und im Health-Endpunkt, mit maskierten IBANs und ohne Verwendungszwecke oder Namen.
 
 Einzelheiten: [Architektur](docs/architektur.md).
@@ -133,7 +133,7 @@ Bankbote wird testgetrieben entwickelt; die CI verlangt 100 % Abdeckung von Zeil
 - das Erkennen vorgemerkter Umsätze und das exakte Lesen von Beträgen und Daten;
 - die REST-API von ERPNext für Bankkonten und Bankumsätze mit Seiten, Filtern, Einreichen, Fehlern und Weiterleitungen;
 - die Mandantentrennung mit zwei und drei ERPNext-Installationen: jedes Konto nur an sein Ziel, jeder Schlüssel nur an seine Adresse, ein ausgefallenes, langsames oder den Schlüssel ablehnendes Ziel ohne Folgen für die anderen;
-- die Idempotenz: zweimal laufen, überlappende Zeiträume, liegengebliebene Entwürfe, stornierte Umsätze;
+- die Idempotenz: zweimal laufen, überlappende Zeiträume, Entwürfe, stornierte Umsätze;
 - der ganze Dienst als Spring-Anwendung gegen einen nachgebauten Hibiscus Server und drei nachgebaute ERPNext, mit Benachrichtigung, Health-Ausgabe und Log, das keine Geheimnisse, IBANs, Zwecke oder Namen enthält;
 - der Start mit falscher Zuordnung;
 - in der CI das native Image im Container, gestartet mit erfundenen Zugangsdaten.
@@ -147,11 +147,18 @@ Gegen einen **laufenden Hibiscus Server 2.12.4** mit MariaDB in Containern, mit 
 
 Was dabei herauskam, steht unter [Hibiscus Server](docs/hibiscus.md#gegen-einen-laufenden-server-geprüft).
 
+Gegen ein **laufendes ERPNext 16.61** mit MariaDB und Redis in Containern, mit zwei erfundenen Unternehmen auf einer Site und dem Dienstbenutzer mit genau der Rolle aus [Betrieb](docs/betrieb.md#der-dienstbenutzer-in-erpnext), wenn ein Pull Request ERPNext-Client, Lieferung, Konfiguration oder die Suite berührt, auf `main` und wöchentlich:
+
+- `transaction_id` wird beim Anlegen über die API übernommen und kommt in der Antwort zurück, ein Anlegen mit `docstatus` 1 reicht in derselben Anfrage ein, das Unternehmen folgt aus dem Bankkonto;
+- Filter und Seiten beim Lesen der Bankkonten und vorhandener Umsätze, ein zweiter Lauf liefert nichts doppelt, ein stornierter Umsatz zählt als vorhanden, Beträge von 0, die Längen der Felder, lange mehrzeilige Zwecke mit Umlauten;
+- was die Rolle darf und was nicht, auch dass sie keinen Entwurf einreichen kann;
+- die ganze Kette: laufender Hibiscus Server mit Fixtures → Bankbote → laufendes ERPNext.
+
 **Nicht getestet**, weil es nur mit echten Systemen geht:
 
 - gegen eine echte Bank: der FinTS-Dialog, TAN-Verfahren, echte Abrufe und wie vorgemerkte Umsätze, Referenzen, Gegenkonten und Arten bei einer bestimmten Bank aussehen;
 - die Benachrichtigung `notify.url` nach einer echten Synchronisierung;
-- gegen ein echtes ERPNext 16: dass `transaction_id` beim Anlegen über die API gesetzt werden kann (Bankbote prüft das bei jedem Anlegen und hält das Ziel an, wenn nicht), dass ein Anlegen mit `docstatus` 1 einreicht und welche Rechte genau nötig sind.
+- ein ERPNext mit echten Daten, eigenen Rechten, User Permissions auf Unternehmen, weiteren Apps oder einem Reverse Proxy davor; ERPNext-Versionen außer 16.61.
 
 ## Bekannte Grenzen
 

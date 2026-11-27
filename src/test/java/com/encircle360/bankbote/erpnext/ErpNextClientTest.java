@@ -160,28 +160,6 @@ class ErpNextClientTest {
   }
 
   @Test
-  void submitsADraft() throws ErpNextException {
-    erp.existing("hibiscus:2", "Main account - EX", 0);
-    String name = erp.transactions().getFirst().get("name").asString();
-
-    client.submit(name);
-
-    assertThat(erp.transactions().getFirst().get("docstatus").asInt()).isEqualTo(1);
-    assertThat(erp.requests().getFirst().method()).isEqualTo("PUT");
-    assertThat(erp.requests().getFirst().body()).isEqualTo("{\"docstatus\":1}");
-  }
-
-  @Test
-  void refusesASubmitThatDoesNotSubmit() {
-    erp.override(request -> Response.json(200, "{\"data\":{\"name\":\"X\",\"docstatus\":0}}"));
-
-    assertThatThrownBy(() -> client.submit("X"))
-        .isInstanceOfSatisfying(
-            ErpNextException.class, e -> assertThat(e.kind()).isEqualTo(Kind.INCONSISTENT))
-        .hasMessage("ERPNext company-a did not submit bank transaction X");
-  }
-
-  @Test
   void classifiesErrorsWithoutRepeatingTheBodyOrTheSecret() {
     erp.override(request ->
         Response.json(

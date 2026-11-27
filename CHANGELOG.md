@@ -7,6 +7,7 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 ### Hinzugefügt
 
 - Start-Banner: Bankbote meldet sich beim Start mit seinem Namen, der Adresse des Projekts und der encircle360 GmbH als Herausgeberin; der Smoke-Test prüft, dass der Banner auch im nativen Image steckt.
+- Integrationstests gegen ein laufendes ERPNext 16.61 aus dem Image von erpnext_germanized mit MariaDB und Redis (`./gradlew erpnextTest`), mit zwei erfundenen Unternehmen und dem Dienstbenutzer mit genau der dokumentierten Rolle, und ein Test der ganzen Kette vom laufenden Hibiscus Server über Bankbote in das laufende ERPNext. Bestätigt sind `transaction_id` beim Anlegen, Einreichen in einer Anfrage, das Unternehmen aus dem Bankkonto, Filter, Seiten, Beträge von 0, Feldlängen, Umlaute und dass die Rolle für alles genügt außer für Entwürfe. Ergebnisse unter [Betrieb](docs/betrieb.md#der-dienstbenutzer-in-erpnext).
 - Integrationstests gegen einen laufenden Hibiscus Server 2.12.4 mit MariaDB 11.8 in Containern (`./gradlew hibiscusTest`), mit erfundenen Konten und Umsätzen in der Datenbank des Servers. Sie bestätigen Anmeldung, Kontenliste, Datum, Beträge auch in Exponentenschreibweise, das Kennzeichen „vorgemerkt“, Umlaute und Eurozeichen, Inhaltstyp, Fenster, Reihenfolge und das Fehlen einer Grenze; der ganze Dienst läuft gegen den Server und zwei nachgebaute ERPNext. Die Suite läuft in jedem Pull Request. Ergebnisse unter [Hibiscus Server](docs/hibiscus.md#gegen-einen-laufenden-server-geprüft).
 
 - Erste Version von Bankbote: ein Dienst, der gebuchte Umsätze von einem Hibiscus Server liest und je Konto als eingereichte Bankumsätze (`Bank Transaction`) an das ERPNext 16 des Unternehmens liefert, dem das Konto gehört.
@@ -20,6 +21,9 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ### Geändert
 
+- Bankbote reicht keine Entwürfe mehr ein. Hält ERPNext eine `transaction_id` von Bankbote als Entwurf, zählt der Umsatz als fehlgeschlagen mit der Meldung, den Entwurf in ERPNext einzureichen oder zu löschen, und wird nicht doppelt angelegt. Ein echtes ERPNext 16 zeigte, dass das Einreichen eines Entwurfs das Recht Write auf Bank Transaction braucht, das die Rolle des Dienstbenutzers nicht hat und nicht bekommen soll.
+- Die Art eines Umsatzes (`transaction_type`) wird auf 50 Zeichen gekürzt statt auf 140: So lang ist das Feld in ERPNext 16, ein längerer Wert ließ das Anlegen mit `CharacterLengthExceededError` scheitern. `reference_number` ist ein Feld vom Typ Small Text und wird nicht mehr gekürzt.
+
 - Ein Lauf, der die Quelle nicht lesen konnte, wird einmal nach `bankbote.notify-delay` wiederholt. Hibiscus Server lehnt direkt nach dem Start erst Verbindungen ab, schließt dann den TLS-Handshake und antwortet seine JSON-Beans für einen Moment mit HTTP 500; alle drei gelten als Quelle, die noch nicht lesbar ist; ein gemeinsam gestartetes Bankbote müsste sonst bis zum nächsten Zeitplan warten.
 - Bankbote startet nicht mehr mit leerem `bankbote.hibiscus.username`: Hibiscus Server lehnt einen leeren Benutzernamen mit 401 ab, wie ein falsches Passwort.
 
@@ -29,4 +33,4 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ### Bekannte Grenzen
 
-- Noch nie gegen eine echte Bank oder ein echtes ERPNext gelaufen; was davon abhängt, steht im [README](README.md#was-getestet-ist-und-was-nicht).
+- Noch nie gegen eine echte Bank oder ein produktives ERPNext gelaufen; was davon abhängt, steht im [README](README.md#was-getestet-ist-und-was-nicht).

@@ -159,16 +159,6 @@ public final class ErpNextClient {
     return new InsertedTransaction(text(data, "name"), data.path("docstatus").asInt(-1));
   }
 
-  /** Submits a draft Bank Transaction. */
-  public void submit(String name) throws ErpNextException {
-    JsonNode data =
-        data(send("PUT", BANK_TRANSACTION + "/" + pathSegment(name), Map.of("docstatus", 1)));
-    if (data.path("docstatus").asInt(-1) != 1) {
-      throw new ErpNextException(
-          Kind.INCONSISTENT, "ERPNext " + target + " did not submit bank transaction " + name);
-    }
-  }
-
   private List<JsonNode> list(String resource, List<?> filters, List<String> fields)
       throws ErpNextException {
     List<JsonNode> rows = new ArrayList<>();
@@ -284,9 +274,5 @@ public final class ErpNextClient {
 
   private static String queryValue(String value) {
     return URLEncoder.encode(value, StandardCharsets.UTF_8);
-  }
-
-  private static String pathSegment(String value) {
-    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 }

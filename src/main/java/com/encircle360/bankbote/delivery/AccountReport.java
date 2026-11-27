@@ -6,7 +6,7 @@ package com.encircle360.bankbote.delivery;
  *
  * @param iban the masked IBAN
  * @param found the transactions the source holds for the account in the window
- * @param delivered the transactions submitted to ERPNext in this run, drafts included
+ * @param delivered the transactions inserted and submitted in ERPNext in this run
  * @param existing the transactions ERPNext already held, submitted or cancelled
  * @param pending the transactions the bank has not booked yet, never delivered
  * @param failed the transactions that could not be read or delivered

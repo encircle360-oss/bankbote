@@ -27,14 +27,13 @@ import javax.net.ssl.SSLContext;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.wait.strategy.Wait;
 
 /**
  * A real Hibiscus Server from the image of encircle360-oss/hibiscus-server-image with MariaDB 11.8,
  * started the way an operator runs it: read-only root file system, no capabilities, the master
  * password and the password of the database in files. Both passwords are generated for each start.
  */
-public final class HibiscusServer implements AutoCloseable {
+public final class HibiscusServer implements AutoCloseable, LogSource {
 
   /** The name the server puts into the certificate it makes at its first start. */
   public static final String CERTIFICATE_HOSTNAME = "hibiscus.example.com";
@@ -87,9 +86,7 @@ public final class HibiscusServer implements AutoCloseable {
                     databasePassword))
             .withCommand("--character-set-server=utf8mb3", "--collation-server=utf8mb3_general_ci")
             .withExposedPorts(3306)
-            .waitingFor(
-                Wait.forLogMessage(".*ready for connections.*", 2)
-                    .withStartupTimeout(Duration.ofMinutes(2)));
+            .waitingFor(LogOrExit.line(".*ready for connections.*", 2, Duration.ofMinutes(3)));
     database.start();
     GenericContainer<?> server =
         new GenericContainer<>(Images.image("hibiscus-server"))
@@ -108,9 +105,7 @@ public final class HibiscusServer implements AutoCloseable {
                     .withCapDrop(com.github.dockerjava.api.model.Capability.ALL)
                     .withSecurityOpts(java.util.List.of("no-new-privileges")))
             .withExposedPorts(8080)
-            .waitingFor(
-                Wait.forLogMessage(".*all plugins initialised.*", 1)
-                    .withStartupTimeout(Duration.ofMinutes(3)));
+            .waitingFor(LogOrExit.line(".*all plugins initialised.*", 1, Duration.ofMinutes(5)));
     try {
       server.start();
     } catch (RuntimeException e) {
@@ -158,8 +153,7 @@ public final class HibiscusServer implements AutoCloseable {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(e);
     } catch (IllegalStateException e) {
-      throw new IllegalStateException(
-          e.getMessage() + "\n--- last 120 lines of /data/jameica.log ---\n" + jameicaLog(120), e);
+      throw new IllegalStateException(e.getMessage() + "\n" + excerpt(120), e);
     }
   }
 
@@ -243,6 +237,11 @@ public final class HibiscusServer implements AutoCloseable {
     } catch (GeneralSecurityException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  @Override
+  public String excerpt(int lines) {
+    return "--- last " + lines + " lines of /data/jameica.log ---\n" + jameicaLog(lines);
   }
 
   /** The log of the server on stdout so far. */

@@ -89,9 +89,9 @@ class BankTransactionMapperTest {
         BankTransactionMapper.map(transaction, "hibiscus", "Main - EX", "EUR");
 
     assertThat(document.description()).hasSize(500);
+    assertThat(document.referenceNumber()).hasSize(200);
     assertThat(document.bankPartyName()).hasSize(140);
     assertThat(document.bankPartyAccountNumber()).hasSize(140);
-    assertThat(document.transactionType()).hasSize(140);
-    assertThat(document.referenceNumber()).hasSize(140);
+    assertThat(document.transactionType()).hasSize(50);
   }
 }

@@ -67,18 +67,24 @@ Erzeugt Jameica ein neues Zertifikat, etwa auf einem neuen Volume, verweigert Ba
 
 ## Der Dienstbenutzer in ERPNext
 
-In jedem ERPNext einen eigenen Benutzer nur für Bankbote anlegen, ohne Anmeldung am Desk, mit einer eigenen Rolle, etwa „Bankbote“, und für ihn unter *API Access* Schlüssel und Geheimnis erzeugen. Die Rolle braucht:
+In jedem ERPNext einen eigenen Benutzer nur für Bankbote anlegen, als *System User*, mit einer eigenen Rolle, etwa „Bankbote“, und nur dieser Rolle, und für ihn unter *API Access* Schlüssel und Geheimnis erzeugen. Die Rechte der Rolle im *Role Permissions Manager* setzen, nicht in der DocType-Definition:
 
 | DocType | Rechte |
 |---|---|
 | Bank Transaction | Read, Create, Submit |
 | Bank Account | Read |
 
-Für ein ERPNext mit mehreren Unternehmen kann eine User Permission auf *Company* den Benutzer zusätzlich auf die Unternehmen beschränken, deren Konten Bankbote liefert.
+Die Suite `erpnextTest` legt genau diese Rolle in einem echten ERPNext 16.61 an und belegt (siehe [Entwicklung](entwicklung.md#integrationstests)):
 
-Für jedes Konto braucht das ERPNext genau ein Bankkonto mit „Is Company Account“ und der IBAN des Kontos. Gibt es keines oder mehrere, liefert Bankbote für dieses Konto nichts und nennt das in der Zusammenfassung.
+- **Genug:** Mit diesen Rechten liest Bankbote die Bankkonten aller Unternehmen der Site, findet vorhandene Umsätze und legt Umsätze mit `docstatus` 1 an, die ERPNext in derselben Anfrage einreicht. Weitere Rechte, etwa auf Currency oder Company, braucht das nicht; das Unternehmen ergänzt ERPNext selbst aus dem Bankkonto.
+- **Einen Entwurf einreichen kann die Rolle nicht:** Das braucht das Recht Write auf Bank Transaction (HTTP 403 mit `PUT … {"docstatus": 1}` wie mit `frappe.client.submit`). Bankbote reicht deshalb keinen Entwurf ein. Hält ERPNext eine `transaction_id` von Bankbote als Entwurf, etwa von Hand angelegt, zählt der Umsatz als fehlgeschlagen mit der Meldung `… holds hibiscus:… as a draft; submit or delete it there`, und Bankbote legt ihn nicht ein zweites Mal an. Den Entwurf reicht ein Mensch ein oder löscht ihn.
+- **Nicht mehr:** Der Schlüssel liest keine Ausgangsrechnungen, Buchungen (GL Entry), Kunden, Sachkonten und keine Benutzer im Einzelnen (HTTP 403), legt keine Bankkonten an, ändert und löscht keine (403) und storniert und löscht keine Bankumsätze (403). **Die Namen** aller Benutzer (ihre E-Mail-Adressen) und aller Unternehmen der Site kann er auflisten; das erlaubt Frappe jedem System User.
 
-**Nicht gegen ein echtes ERPNext geprüft** sind: dass diese Rechte genügen und keine weiteren nötig sind (etwa Read auf Currency oder Company bei der Prüfung der Verknüpfungen), dass `transaction_id` beim Anlegen über die REST-API übernommen wird, obwohl das Feld im Formular schreibgeschützt ist, dass ein Anlegen mit `docstatus` 1 den Umsatz in einem Schritt einreicht und dass `PUT` mit `docstatus` 1 einen Entwurf einreicht. Bankbote prüft bei jedem Anlegen, ob die Antwort die gesendete `transaction_id` trägt, und hält das Ziel sonst an. Fehlt ein Recht, nennt das Log HTTP 403 oder `PermissionError`.
+Für ein ERPNext mit mehreren Unternehmen kann eine User Permission auf *Company* den Benutzer zusätzlich auf die Unternehmen beschränken, deren Konten Bankbote liefert; das ist nicht getestet.
+
+Für jedes Konto braucht das ERPNext genau ein Bankkonto mit „Is Company Account“ und der IBAN des Kontos, mit oder ohne Leerzeichen. Gibt es keines oder mehrere, liefert Bankbote für dieses Konto nichts und nennt das in der Zusammenfassung.
+
+**Die Adresse muss die Site nennen.** Frappe wählt die Site nach dem Host der Anfrage. `bankbote.targets[n].url` ist deshalb die Adresse, unter der die Site heißt, etwa `https://erp.unternehmen-a.example.com`; die Adresse eines Containers oder eine IP-Adresse beantwortet ERPNext mit 404, solange kein Reverse Proxy davor den Host der Site setzt.
 
 Zum ersten Prüfen gegen ein echtes ERPNext eignet sich eine Kopie der Site mit einem Konto und `backfill-from` auf wenige Tage:
 
