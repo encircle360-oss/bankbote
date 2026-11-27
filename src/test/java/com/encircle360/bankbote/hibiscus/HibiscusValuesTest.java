@@ -88,7 +88,8 @@ class HibiscusValuesTest {
 
   @ParameterizedTest
   @NullAndEmptySource
-  @ValueSource(strings = {"Fri Nov 27 00:00:00 CET 2026", "2026-13-01", "27.11.26", "2026-11-27T10:00"})
+  @ValueSource(
+      strings = {"Fri Nov 27 00:00:00 CET 2026", "2026-13-01", "27.11.26", "2026-11-27T10:00"})
   void refusesOtherDates(String text) {
     assertThatThrownBy(() -> HibiscusValues.date(text))
         .isInstanceOf(IllegalArgumentException.class)
@@ -132,5 +133,10 @@ class HibiscusValuesTest {
         .isEqualTo("Invoice 1\nline 3\nline 4");
     assertThat(HibiscusValues.joinWords("Example", null, " Trading ")).isEqualTo("Example Trading");
     assertThat(HibiscusValues.joinWords()).isEmpty();
+  }
+
+  @Test
+  void dropsBlankLinesWithinAPart() {
+    assertThat(HibiscusValues.joinLines("one\n\n  \ntwo")).isEqualTo("one\ntwo");
   }
 }

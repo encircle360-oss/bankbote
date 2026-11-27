@@ -81,7 +81,8 @@ public final class TestCertificate {
       try (InputStream in = Files.newInputStream(store)) {
         keyStore.load(in, STORE_PASSWORD);
       }
-      KeyManagerFactory keys = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+      KeyManagerFactory keys =
+          KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
       keys.init(keyStore, STORE_PASSWORD);
       SSLContext context = SSLContext.getInstance("TLS");
       context.init(keys.getKeyManagers(), null, null);

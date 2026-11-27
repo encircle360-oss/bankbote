@@ -44,7 +44,8 @@ public final class FakeSource implements TransactionSource {
   }
 
   public FakeSource pending(String accountId, String id) {
-    return add(accountId, new SourceTransaction(id, null, BigDecimal.ZERO, true, "", "", "", "", ""));
+    return add(
+        accountId, new SourceTransaction(id, null, BigDecimal.ZERO, true, "", "", "", "", ""));
   }
 
   public FakeSource unreadable(String accountId, String id) {

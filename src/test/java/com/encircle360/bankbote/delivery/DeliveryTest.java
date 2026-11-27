@@ -108,7 +108,10 @@ class DeliveryTest {
         .booked("3", "31", "2026-11-22", "30.00");
 
     RunReport report =
-        delivery(List.of(route(A1, "a"), route(A2, "a"), route(B1, "b")), client("a", a), client("b", b))
+        delivery(
+                List.of(route(A1, "a"), route(A2, "a"), route(B1, "b")),
+                client("a", a),
+                client("b", b))
             .run(FROM);
 
     assertThat(ids(a)).containsExactlyInAnyOrder("hibiscus:11", "hibiscus:21");
@@ -119,7 +122,8 @@ class DeliveryTest {
     assertThat(b.transactions().getFirst().get("bank_account").asString()).isEqualTo("Main - B");
     assertThat(report.successful()).isTrue();
     assertThat(report.targets()).extracting(TargetReport::name).containsExactly("a", "b");
-    assertThat(account(report, "a", A1)).isEqualTo(new AccountReport("DE17…0001", 1, 1, 0, 0, 0, null));
+    assertThat(account(report, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 1, 1, 0, 0, 0, null));
     assertThat(account(report, "b", B1).delivered()).isEqualTo(1);
   }
 
@@ -151,16 +155,16 @@ class DeliveryTest {
       FakeErpNext erp = name.equals("a") ? a : name.equals("b") ? b : c;
       assertThat(erp.requests())
           .isNotEmpty()
-          .allSatisfy(
-              request ->
-                  assertThat(request.header("Authorization"))
-                      .isEqualTo("token key-" + name + ":secret-" + name));
+          .allSatisfy(request ->
+              assertThat(request.header("Authorization"))
+                  .isEqualTo("token key-" + name + ":secret-" + name));
     }
   }
 
   @Test
   void neverSendsAnUnmappedAccountAnywhereAndReportsIt() {
-    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).bankAccount("Other - A", UNMAPPED, true);
+    FakeErpNext a =
+        erp("a").bankAccount("Main - A", A1, true).bankAccount("Other - A", UNMAPPED, true);
     source
         .account("1", A1)
         .account("5", UNMAPPED)
@@ -172,7 +176,8 @@ class DeliveryTest {
 
     assertThat(a.transactions()).isEmpty();
     assertThat(report.unmapped())
-        .containsExactly(new UnmappedAccount("DE06…0005", "5", 2), new UnmappedAccount("none", "6", 0));
+        .containsExactly(
+            new UnmappedAccount("DE06…0005", "5", 2), new UnmappedAccount("none", "6", 0));
     assertThat(report.successful()).isTrue();
   }
 
@@ -193,7 +198,8 @@ class DeliveryTest {
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
     assertThat(ids(a)).containsExactly("hibiscus:11");
-    assertThat(account(report, "a", A1)).isEqualTo(new AccountReport("DE17…0001", 2, 1, 0, 1, 0, null));
+    assertThat(account(report, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 0, 1, 0, null));
   }
 
   @Test
@@ -205,7 +211,9 @@ class DeliveryTest {
 
     assertThat(ids(a)).containsExactly("hibiscus:11");
     assertThat(account(report, "a", A1))
-        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 0, 0, 1, "1 transaction(s) cannot be read at the source"));
+        .isEqualTo(
+            new AccountReport(
+                "DE17…0001", 2, 1, 0, 0, 1, "1 transaction(s) cannot be read at the source"));
     assertThat(report.successful()).isFalse();
   }
 
@@ -223,8 +231,10 @@ class DeliveryTest {
     RunReport third = delivery.run(FROM);
 
     assertThat(ids(a)).containsExactlyInAnyOrder("hibiscus:11", "hibiscus:12");
-    assertThat(account(report(second), "a", A1)).isEqualTo(new AccountReport("DE17…0001", 2, 1, 1, 0, 0, null));
-    assertThat(account(third, "a", A1)).isEqualTo(new AccountReport("DE17…0001", 2, 0, 2, 0, 0, null));
+    assertThat(account(report(second), "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 1, 0, 0, null));
+    assertThat(account(third, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 2, 0, 2, 0, 0, null));
   }
 
   private static RunReport report(RunReport report) {
@@ -233,7 +243,8 @@ class DeliveryTest {
 
   @Test
   void submitsADraftLeftByACrashBetweenInsertAndSubmitInsteadOfInsertingAgain() {
-    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
+    FakeErpNext a =
+        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
@@ -256,7 +267,8 @@ class DeliveryTest {
 
   @Test
   void leavesACancelledTransactionAloneAndCountsItAsExisting() {
-    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 2);
+    FakeErpNext a =
+        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 2);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
@@ -283,11 +295,24 @@ class DeliveryTest {
     assertThat(a.transactions()).isEmpty();
     assertThat(account(report, "a", A1))
         .isEqualTo(
-            new AccountReport("DE17…0001", 1, 0, 0, 0, 1, "ERPNext a has no company bank account with this IBAN"));
+            new AccountReport(
+                "DE17…0001",
+                1,
+                0,
+                0,
+                0,
+                1,
+                "ERPNext a has no company bank account with this IBAN"));
     assertThat(account(report, "a", A2))
         .isEqualTo(
             new AccountReport(
-                "DE87…0002", 1, 0, 0, 0, 1, "ERPNext a has 2 company bank accounts with this IBAN"));
+                "DE87…0002",
+                1,
+                0,
+                0,
+                0,
+                1,
+                "ERPNext a has 2 company bank accounts with this IBAN"));
   }
 
   @Test
@@ -320,11 +345,13 @@ class DeliveryTest {
     assertThat(report.successful()).isFalse();
     assertThat(account(report, "a", A1).delivered()).isEqualTo(1);
     assertThat(account(report, "b", B1))
-        .isEqualTo(new AccountReport("DE60…0003", 1, 0, 0, 0, 1, "ERPNext b is unavailable (HTTP 503)"));
+        .isEqualTo(
+            new AccountReport("DE60…0003", 1, 0, 0, 0, 1, "ERPNext b is unavailable (HTTP 503)"));
     assertThat(report.targets())
         .filteredOn(t -> t.name().equals("c-wrong"))
         .singleElement()
-        .satisfies(t -> assertThat(t.error()).isEqualTo("ERPNext c-wrong rejected the API key (HTTP 401)"));
+        .satisfies(t ->
+            assertThat(t.error()).isEqualTo("ERPNext c-wrong rejected the API key (HTTP 401)"));
     assertThat(report.targets())
         .filteredOn(t -> t.name().equals("a"))
         .singleElement()
@@ -335,15 +362,14 @@ class DeliveryTest {
   void aSlowTargetDoesNotDelayTheOthers() {
     FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
     FakeErpNext slow = erp("slow").bankAccount("Main - S", B1, true);
-    slow.override(
-        request -> {
-          try {
-            Thread.sleep(3000);
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-          }
-          return null;
-        });
+    slow.override(request -> {
+      try {
+        Thread.sleep(3000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      return null;
+    });
     source
         .account("1", A1)
         .account("3", B1)
@@ -351,13 +377,12 @@ class DeliveryTest {
         .booked("3", "31", "2026-11-20", "1.00");
     List<Long> deliveredAt = new java.util.concurrent.CopyOnWriteArrayList<>();
     long start = System.nanoTime();
-    a.override(
-        request -> {
-          if (request.method().equals("POST")) {
-            deliveredAt.add(System.nanoTime() - start);
-          }
-          return null;
-        });
+    a.override(request -> {
+      if (request.method().equals("POST")) {
+        deliveredAt.add(System.nanoTime() - start);
+      }
+      return null;
+    });
 
     RunReport report =
         delivery(
@@ -367,24 +392,27 @@ class DeliveryTest {
             .run(FROM);
 
     assertThat(ids(a)).containsExactly("hibiscus:11");
-    assertThat(deliveredAt).singleElement().satisfies(nanos -> assertThat(nanos).isLessThan(2_000_000_000L));
-    assertThat(account(report, "slow", B1).error()).startsWith("ERPNext slow cannot be reached: HttpTimeoutException");
+    assertThat(deliveredAt)
+        .singleElement()
+        .satisfies(nanos -> assertThat(nanos).isLessThan(2_000_000_000L));
+    assertThat(account(report, "slow", B1).error())
+        .startsWith("ERPNext slow cannot be reached: HttpTimeoutException");
   }
 
   @Test
   void aRejectedDocumentFailsOnlyItselfAndARedirectNeverCarriesTheToken() {
     FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
     try (FakeHttpServer elsewhere = FakeHttpServer.http()) {
-      a.override(
-          request -> {
-            if (request.method().equals("POST") && request.body().contains("hibiscus:11")) {
-              return Response.json(417, "{\"exc_type\":\"ValidationError\"}");
-            }
-            if (request.method().equals("POST") && request.body().contains("hibiscus:13")) {
-              return new Response(302, "text/plain", "", Map.of("Location", elsewhere.uri() + "/steal"));
-            }
-            return null;
-          });
+      a.override(request -> {
+        if (request.method().equals("POST") && request.body().contains("hibiscus:11")) {
+          return Response.json(417, "{\"exc_type\":\"ValidationError\"}");
+        }
+        if (request.method().equals("POST") && request.body().contains("hibiscus:13")) {
+          return new Response(
+              302, "text/plain", "", Map.of("Location", elsewhere.uri() + "/steal"));
+        }
+        return null;
+      });
       source
           .account("1", A1)
           .booked("1", "11", "2026-11-20", "1.00")
@@ -407,7 +435,11 @@ class DeliveryTest {
 
   @Test
   void stopsATargetThatDropsTheTransactionId() {
-    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).bankAccount("Savings - A", A2, true).dropTransactionId();
+    FakeErpNext a =
+        erp("a")
+            .bankAccount("Main - A", A1, true)
+            .bankAccount("Savings - A", A2, true)
+            .dropTransactionId();
     source
         .account("1", A1)
         .account("2", A2)
@@ -415,29 +447,39 @@ class DeliveryTest {
         .booked("1", "12", "2026-11-20", "1.00")
         .booked("2", "21", "2026-11-20", "1.00");
 
-    RunReport report =
-        delivery(List.of(route(A1, "a"), route(A2, "a")), client("a", a)).run(FROM);
+    RunReport report = delivery(List.of(route(A1, "a"), route(A2, "a")), client("a", a)).run(FROM);
 
     assertThat(a.transactions()).hasSize(1);
     assertThat(report.targets().getFirst().error()).contains("did not keep the transaction_id");
     assertThat(account(report, "a", A1).failed()).isEqualTo(2);
     assertThat(account(report, "a", A2))
         .isEqualTo(
-            new AccountReport(
-                "DE87…0002", 1, 0, 0, 0, 1, report.targets().getFirst().error()));
+            new AccountReport("DE87…0002", 1, 0, 0, 0, 1, report.targets().getFirst().error()));
   }
 
   @Test
   void reportsAnAccountTheSourceDoesNotHaveOrHoldsTwiceOrCannotRead() {
-    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).bankAccount("Savings - A", A2, true).bankAccount("Third - A", B1, true);
-    source.account("2", A2).account("3", A2).account("4", B1).failing("4", "Hibiscus Server answered HTTP 500");
+    FakeErpNext a =
+        erp("a")
+            .bankAccount("Main - A", A1, true)
+            .bankAccount("Savings - A", A2, true)
+            .bankAccount("Third - A", B1, true);
+    source
+        .account("2", A2)
+        .account("3", A2)
+        .account("4", B1)
+        .failing("4", "Hibiscus Server answered HTTP 500");
 
     RunReport report =
         delivery(List.of(route(A1, "a"), route(A2, "a"), route(B1, "a")), client("a", a)).run(FROM);
 
-    assertThat(account(report, "a", A1).error()).isEqualTo("the source has no account with this IBAN");
-    assertThat(account(report, "a", A2).error()).isEqualTo("the source has 2 accounts with this IBAN");
-    assertThat(account(report, "a", B1)).isEqualTo(new AccountReport("DE60…0003", 0, 0, 0, 0, 0, "Hibiscus Server answered HTTP 500"));
+    assertThat(account(report, "a", A1).error())
+        .isEqualTo("the source has no account with this IBAN");
+    assertThat(account(report, "a", A2).error())
+        .isEqualTo("the source has 2 accounts with this IBAN");
+    assertThat(account(report, "a", B1))
+        .isEqualTo(
+            new AccountReport("DE60…0003", 0, 0, 0, 0, 0, "Hibiscus Server answered HTTP 500"));
     assertThat(a.requests()).isEmpty();
   }
 
@@ -448,7 +490,8 @@ class DeliveryTest {
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-    assertThat(report.sourceError()).isEqualTo("Hibiscus Server rejected the master password (HTTP 401)");
+    assertThat(report.sourceError())
+        .isEqualTo("Hibiscus Server rejected the master password (HTTP 401)");
     assertThat(report.successful()).isFalse();
     assertThat(report.targets()).isEmpty();
     assertThat(a.requests()).isEmpty();
@@ -462,7 +505,8 @@ class DeliveryTest {
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
     assertThat(a.requests()).isEmpty();
-    assertThat(account(report, "a", A1)).isEqualTo(new AccountReport("DE17…0001", 1, 0, 0, 1, 0, null));
+    assertThat(account(report, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 1, 0, 0, 1, 0, null));
     assertThat(report.from()).isEqualTo(FROM);
     assertThat(report.startedAt()).isEqualTo(CLOCK.instant());
     assertThat(report.finishedAt()).isEqualTo(CLOCK.instant());
@@ -480,30 +524,34 @@ class DeliveryTest {
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
     assertThat(account(report, "a", A1).existing()).isEqualTo(1);
-    assertThat(a.transactions()).extracting(doc -> doc.get("docstatus").asInt()).containsExactly(1, 0);
+    assertThat(a.transactions())
+        .extracting(doc -> doc.get("docstatus").asInt())
+        .containsExactly(1, 0);
   }
 
   @Test
   void aSubmitThatFailsCountsAsFailed() {
-    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
+    FakeErpNext a =
+        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
     a.override(request -> request.method().equals("PUT") ? Response.json(417, "{}") : null);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
     assertThat(account(report, "a", A1).failed()).isEqualTo(1);
-    assertThat(account(report, "a", A1).error()).isEqualTo("ERPNext a rejected the request (HTTP 417)");
+    assertThat(account(report, "a", A1).error())
+        .isEqualTo("ERPNext a rejected the request (HTTP 417)");
   }
 
   @Test
   void anUnexpectedDocstatusCountsAsFailed() {
     FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
-    a.override(
-        request ->
-            request.method().equals("POST")
-                ? Response.json(
-                    200, "{\"data\":{\"name\":\"X\",\"transaction_id\":\"hibiscus:11\",\"docstatus\":2}}")
-                : null);
+    a.override(request ->
+        request.method().equals("POST")
+            ? Response.json(
+                200,
+                "{\"data\":{\"name\":\"X\",\"transaction_id\":\"hibiscus:11\",\"docstatus\":2}}")
+            : null);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
@@ -524,5 +572,44 @@ class DeliveryTest {
     assertThat(doc.get("withdrawal").decimalValue()).isEqualByComparingTo("10.00");
     assertThat(doc.get("currency").asString()).isEqualTo("EUR");
     assertThat(doc.get("date").asString()).isEqualTo("2026-11-20");
+  }
+
+  @Test
+  void anUnexpectedErrorOfATargetRunEndsTheRun() {
+    com.encircle360.bankbote.source.TransactionSource broken =
+        new com.encircle360.bankbote.source.TransactionSource() {
+          @Override
+          public List<com.encircle360.bankbote.source.SourceAccount> accounts() {
+            return List.of(new com.encircle360.bankbote.source.SourceAccount("1", A1, "EUR"));
+          }
+
+          @Override
+          public com.encircle360.bankbote.source.SourceEntries transactions(
+              com.encircle360.bankbote.source.SourceAccount account, LocalDate from) {
+            throw new IllegalStateException("broken source");
+          }
+        };
+    Delivery delivery =
+        new Delivery(
+            broken, "hibiscus", List.of(route(A1, "a")), List.of(client("a", erp("a"))), CLOCK);
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(() -> delivery.run(FROM))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("a target run failed unexpectedly")
+        .hasRootCauseMessage("broken source");
+  }
+
+  @Test
+  void anInterruptedRunEndsWithAnError() {
+    source.account("1", A1);
+    Delivery delivery = delivery(List.of(route(A1, "a")), client("a", erp("a")));
+    Thread.currentThread().interrupt();
+    try {
+      org.assertj.core.api.Assertions.assertThatThrownBy(() -> delivery.run(FROM))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("interrupted during a run");
+    } finally {
+      Thread.interrupted();
+    }
   }
 }

@@ -75,13 +75,12 @@ class HibiscusSourceTest {
 
   @Test
   void readsTheAccountsWithBasicAuthenticationOfTheMasterPassword() throws SourceException {
-    server.handler(
-        request ->
-            Response.json(
-                200,
-                "[{\"id\":\"3\",\"iban\":\"DE17 1234 5678 0000 0000 01\",\"waehrung\":\"EUR\","
-                    + "\"kontonummer\":\"1\",\"saldo\":\"1.0E7\"},"
-                    + "{\"id\":\"4\",\"kontonummer\":\"2\"}]"));
+    server.handler(request ->
+        Response.json(
+            200,
+            "[{\"id\":\"3\",\"iban\":\"DE17 1234 5678 0000 0000 01\",\"waehrung\":\"EUR\","
+                + "\"kontonummer\":\"1\",\"saldo\":\"1.0E7\"},"
+                + "{\"id\":\"4\",\"kontonummer\":\"2\"}]"));
 
     List<SourceAccount> accounts = source.accounts();
 
@@ -112,20 +111,19 @@ class HibiscusSourceTest {
 
   @Test
   void readsTheTransactionsOfTheWindowWithOneDayToSpare() throws SourceException {
-    server.handler(
-        request ->
-            Response.json(
-                200,
-                "["
-                    + transaction(
-                        ",\"zweck\":\"EREF+E2E-1 SVWZ+Invoice\",\"zweck2\":\"2026-0042\","
-                            + "\"zweck3\":\"line three\\nline four\","
-                            + "\"empfaenger_name\":\"Example\",\"empfaenger_name2\":\"Trading GmbH\","
-                            + "\"empfaenger_konto\":\"DE87123456780000000002\",\"art\":\"SEPA transfer\","
-                            + "\"endtoendid\":\"E2E-1\",\"customerref\":\"NONREF\",\"flags\":\"0\"")
-                    + ","
-                    + "{\"id\":\"40\",\"konto_id\":\"3\",\"datum\":\"2026-11-19\",\"betrag\":\"5.0\"}"
-                    + "]"));
+    server.handler(request ->
+        Response.json(
+            200,
+            "["
+                + transaction(
+                    ",\"zweck\":\"EREF+E2E-1 SVWZ+Invoice\",\"zweck2\":\"2026-0042\","
+                        + "\"zweck3\":\"line three\\nline four\","
+                        + "\"empfaenger_name\":\"Example\",\"empfaenger_name2\":\"Trading GmbH\","
+                        + "\"empfaenger_konto\":\"DE87123456780000000002\",\"art\":\"SEPA transfer\","
+                        + "\"endtoendid\":\"E2E-1\",\"customerref\":\"NONREF\",\"flags\":\"0\"")
+                + ","
+                + "{\"id\":\"40\",\"konto_id\":\"3\",\"datum\":\"2026-11-19\",\"betrag\":\"5.0\"}"
+                + "]"));
 
     SourceEntries entries = source.transactions(ACCOUNT, LocalDate.of(2026, 11, 20));
 
@@ -193,29 +191,30 @@ class HibiscusSourceTest {
 
   @Test
   void marksPendingTransactions() throws SourceException {
-    server.handler(
-        request -> Response.json(200, "[" + transaction(",\"flags\":\"2\",\"betrag\":\"oops\"") + "]"));
+    server.handler(request ->
+        Response.json(200, "[" + transaction(",\"flags\":\"2\",\"betrag\":\"oops\"") + "]"));
 
     SourceEntries entries = source.transactions(ACCOUNT, LocalDate.of(2026, 11, 20));
 
-    assertThat(entries.transactions()).singleElement().satisfies(t -> assertThat(t.pending()).isTrue());
+    assertThat(entries.transactions())
+        .singleElement()
+        .satisfies(t -> assertThat(t.pending()).isTrue());
     assertThat(entries.unreadable()).isEmpty();
   }
 
   @Test
   void reportsTransactionsItCannotReadWithoutTheirContent() throws SourceException {
-    server.handler(
-        request ->
-            Response.json(
-                200,
-                "["
-                    + "{\"id\":\"50\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.234,56\",\"zweck\":\"secret\"},"
-                    + "{\"id\":\"51\",\"konto_id\":\"3\",\"datum\":\"25/11/2026\",\"betrag\":\"1.0\"},"
-                    + "{\"id\":\"52\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\",\"flags\":\"x\"},"
-                    + "{\"id\":\"53\",\"konto_id\":\"9\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\"},"
-                    + "{\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\"},"
-                    + "\"not an object\""
-                    + "]"));
+    server.handler(request ->
+        Response.json(
+            200,
+            "["
+                + "{\"id\":\"50\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.234,56\",\"zweck\":\"secret\"},"
+                + "{\"id\":\"51\",\"konto_id\":\"3\",\"datum\":\"25/11/2026\",\"betrag\":\"1.0\"},"
+                + "{\"id\":\"52\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\",\"flags\":\"x\"},"
+                + "{\"id\":\"53\",\"konto_id\":\"9\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\"},"
+                + "{\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\"},"
+                + "\"not an object\""
+                + "]"));
 
     SourceEntries entries = source.transactions(ACCOUNT, LocalDate.of(2026, 11, 20));
 
@@ -243,15 +242,17 @@ class HibiscusSourceTest {
   void refusesWindowsAndAccountsTheInterfaceCannotExpress() {
     assertThatThrownBy(() -> source.transactions(ACCOUNT, LocalDate.of(1990, 1, 1)))
         .isInstanceOf(SourceException.class)
-        .hasMessage("Hibiscus Server gives at most 9999 days of transactions, the window needs 13480");
-    assertThatThrownBy(
-            () -> source.transactions(new SourceAccount("12345", "", "EUR"), LocalDate.of(2026, 11, 1)))
+        .hasMessage(
+            "Hibiscus Server gives at most 9999 days of transactions, the window needs 13480");
+    assertThatThrownBy(() ->
+            source.transactions(new SourceAccount("12345", "", "EUR"), LocalDate.of(2026, 11, 1)))
         .isInstanceOf(SourceException.class)
         .hasMessage("Hibiscus Server gives transactions only for account ids of up to four digits");
     assertThatThrownBy(
             () -> source.transactions(new SourceAccount("3", "", "XYZ"), LocalDate.of(2026, 11, 1)))
         .isInstanceOf(SourceException.class)
-        .hasMessage("account 3 has no valid currency: not an ISO 4217 currency code with fixed decimals");
+        .hasMessage(
+            "account 3 has no valid currency: not an ISO 4217 currency code with fixed decimals");
     assertThat(server.requests()).isEmpty();
   }
 
@@ -264,16 +265,14 @@ class HibiscusSourceTest {
         .hasMessageNotContaining("master-secret");
 
     server.handler(request -> Response.json(500, "boom"));
-    assertThatThrownBy(() -> source.accounts())
-        .hasMessage("Hibiscus Server answered HTTP 500");
+    assertThatThrownBy(() -> source.accounts()).hasMessage("Hibiscus Server answered HTTP 500");
   }
 
   @Test
   void neverFollowsRedirects() {
     try (FakeHttpServer elsewhere = FakeHttpServer.http()) {
-      server.handler(
-          request ->
-              new Response(302, "text/plain", "", Map.of("Location", elsewhere.uri() + "/x")));
+      server.handler(request ->
+          new Response(302, "text/plain", "", Map.of("Location", elsewhere.uri() + "/x")));
 
       assertThatThrownBy(() -> source.accounts()).hasMessage("Hibiscus Server answered HTTP 302");
       assertThat(elsewhere.requests()).isEmpty();
@@ -353,14 +352,89 @@ class HibiscusSourceTest {
             TlsContexts.pinned(certificate.pem()),
             Duration.ofSeconds(5),
             Duration.ofMillis(200));
-    server.handler(
-        request -> {
-          Thread.sleep(2000);
-          return Response.json(200, "[]");
-        });
+    server.handler(request -> {
+      Thread.sleep(2000);
+      return Response.json(200, "[]");
+    });
 
     assertThatThrownBy(() -> new HibiscusSource(impatient, CLOCK).accounts())
         .isInstanceOf(SourceException.class)
         .hasMessageStartingWith("Hibiscus Server cannot be reached: HttpTimeoutException");
+  }
+
+  @Test
+  void acceptsABaseUrlWithATrailingSlashAndNullValues() throws Exception {
+    server.handler(
+        request -> Response.json(200, "[{\"id\":\"3\",\"iban\":null,\"waehrung\":\"EUR\"}]"));
+
+    List<SourceAccount> accounts =
+        source(
+                URI.create(server.uri() + "/"),
+                Files.writeString(dir.resolve("pw2"), "master-secret"))
+            .accounts();
+
+    assertThat(accounts).containsExactly(new SourceAccount("3", "", "EUR"));
+    assertThat(server.requests().getFirst().uri().getPath())
+        .isEqualTo("/webadmin/rest/hibiscus/konto/list");
+  }
+
+  @Test
+  void aForbiddenAnswerIsARejectedPassword() {
+    server.handler(request -> Response.json(403, ""));
+
+    assertThatThrownBy(() -> source.accounts())
+        .hasMessage("Hibiscus Server rejected the master password (HTTP 403)");
+  }
+
+  @Test
+  void ignoresContentTypeParametersWithoutValue() throws SourceException {
+    server.handler(request -> new Response(200, "application/json; charset; q=1", "[]", Map.of()));
+
+    assertThat(source.accounts()).isEmpty();
+  }
+
+  @Test
+  void anInterruptedRequestEndsWithASourceException() {
+    server.handler(request -> Response.json(200, "[]"));
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> source.accounts())
+          .isInstanceOf(SourceException.class)
+          .hasMessage("interrupted while waiting for Hibiscus Server");
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  @Test
+  void sourceTypesKeepPersonalDataOutOfTheirText() {
+    assertThat(new SourceAccount("3", "DE17123456780000000001", "EUR").toString())
+        .isEqualTo("SourceAccount[id=3, iban=DE17…0001]");
+    assertThat(new SourceAccount("4", "", "EUR").toString())
+        .isEqualTo("SourceAccount[id=4, iban=none]");
+    assertThat(
+            new SourceTransaction(
+                    "41",
+                    LocalDate.of(2026, 11, 25),
+                    java.math.BigDecimal.ONE,
+                    false,
+                    "Invoice",
+                    "Example",
+                    "",
+                    "",
+                    "")
+                .toString())
+        .isEqualTo("SourceTransaction[id=41]");
+  }
+
+  @Test
+  void anAnswerCutOffInTheMiddleIsAnUnreachableServer() {
+    server.handler(request ->
+        new Response(
+            200, "application/json; q=1", "[1,2,3]", Map.of(FakeHttpServer.TRUNCATE, "yes")));
+
+    assertThatThrownBy(() -> source.accounts())
+        .isInstanceOf(SourceException.class)
+        .hasMessageStartingWith("Hibiscus Server cannot be reached: ");
   }
 }

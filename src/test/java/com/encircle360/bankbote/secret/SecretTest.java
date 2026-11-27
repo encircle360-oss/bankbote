@@ -70,4 +70,12 @@ class SecretTest {
         .isInstanceOf(SecretFileException.class)
         .hasMessage("no secret file configured");
   }
+
+  @Test
+  void refusesACarriageReturnInsideTheValue() throws IOException {
+    Path file = Files.writeString(dir.resolve("cr"), "first\rsecond");
+
+    assertThatThrownBy(() -> Secret.fromFile(file))
+        .hasMessage("secret file " + file + " holds more than one line");
+  }
 }

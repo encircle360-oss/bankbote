@@ -52,7 +52,15 @@ class ConfigurationCheckTest {
 
   private BankboteProperties properties(List<Target> targets, List<Account> accounts) {
     return new BankboteProperties(
-        "hibiscus", 14, null, "Europe/Berlin", "0 0 * * * *", Duration.ofSeconds(60), hibiscus(), targets, accounts);
+        "hibiscus",
+        14,
+        null,
+        "Europe/Berlin",
+        "0 0 * * * *",
+        Duration.ofSeconds(60),
+        hibiscus(),
+        targets,
+        accounts);
   }
 
   private List<String> problems(BankboteProperties properties) {
@@ -64,8 +72,12 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 properties(
-                    List.of(target("company-a", "https://erp-a.example.com"), target("company-b", "https://erp-b.example.com")),
-                    List.of(new Account(A1, "company-a"), new Account("de60 1234 5678 0000 0000 03", "company-b")))))
+                    List.of(
+                        target("company-a", "https://erp-a.example.com"),
+                        target("company-b", "https://erp-b.example.com")),
+                    List.of(
+                        new Account(A1, "company-a"),
+                        new Account("de60 1234 5678 0000 0000 03", "company-b")))))
         .isEmpty();
   }
 
@@ -74,7 +86,9 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 properties(
-                    List.of(target("company-a", "https://erp-a.example.com"), target("company-a", "https://erp-b.example.com")),
+                    List.of(
+                        target("company-a", "https://erp-a.example.com"),
+                        target("company-a", "https://erp-b.example.com")),
                     List.of(new Account(A1, "company-a")))))
         .containsExactly("bankbote.targets: the name company-a is used 2 times");
   }
@@ -84,7 +98,9 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 properties(
-                    List.of(target("company-a", "https://ERP.example.com/"), target("company-b", "https://erp.example.com")),
+                    List.of(
+                        target("company-a", "https://ERP.example.com/"),
+                        target("company-b", "https://erp.example.com")),
                     List.of(new Account(A1, "company-a")))))
         .containsExactly("bankbote.targets: company-a and company-b point at the same ERPNext");
   }
@@ -96,7 +112,8 @@ class ConfigurationCheckTest {
                 properties(
                     List.of(target("company-a", "https://erp-a.example.com")),
                     List.of(new Account(A1, "company-x")))))
-        .containsExactly("bankbote.accounts[0] (DE17…0001) is mapped to the unknown target company-x");
+        .containsExactly(
+            "bankbote.accounts[0] (DE17…0001) is mapped to the unknown target company-x");
   }
 
   @Test
@@ -104,7 +121,9 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 properties(
-                    List.of(target("company-a", "https://erp-a.example.com"), target("company-b", "https://erp-b.example.com")),
+                    List.of(
+                        target("company-a", "https://erp-a.example.com"),
+                        target("company-b", "https://erp-b.example.com")),
                     List.of(
                         new Account(A1, "company-a"),
                         new Account("DE17 1234 5678 0000 0000 01", "company-b")))))
@@ -117,7 +136,10 @@ class ConfigurationCheckTest {
             problems(
                 properties(
                     List.of(target("company-a", "https://erp-a.example.com")),
-                    List.of(new Account("DE18123456780000000001", "company-a"), new Account(B1, null), new Account(null, "company-a")))))
+                    List.of(
+                        new Account("DE18123456780000000001", "company-a"),
+                        new Account(B1, null),
+                        new Account(null, "company-a")))))
         .containsExactly(
             "bankbote.accounts[0].iban: not a valid IBAN: check digits do not match",
             "bankbote.accounts[1].target is missing",
@@ -129,9 +151,19 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus", 14, null, "Europe/Berlin", "0 0 * * * *", Duration.ZERO, null, null, null)))
+                    "hibiscus",
+                    14,
+                    null,
+                    "Europe/Berlin",
+                    "0 0 * * * *",
+                    Duration.ZERO,
+                    null,
+                    null,
+                    null)))
         .containsExactly(
-            "bankbote.hibiscus is missing", "bankbote.targets is empty", "bankbote.accounts is empty");
+            "bankbote.hibiscus is missing",
+            "bankbote.targets is empty",
+            "bankbote.accounts is empty");
   }
 
   @Test
@@ -162,7 +194,13 @@ class ConfigurationCheckTest {
   void acceptsAScheduleOfNone() {
     BankboteProperties properties =
         new BankboteProperties(
-            "hibiscus", 9999, LocalDate.of(2026, 11, 27), "UTC", "-", Duration.ZERO, hibiscus(),
+            "hibiscus",
+            9999,
+            LocalDate.of(2026, 11, 27),
+            "UTC",
+            "-",
+            Duration.ZERO,
+            hibiscus(),
             List.of(target("company-a", "https://erp-a.example.com")),
             List.of(new Account(A1, "company-a")));
 
@@ -173,25 +211,45 @@ class ConfigurationCheckTest {
   void refusesABrokenHibiscusSection() throws IOException {
     Path empty = Files.writeString(dir.resolve("empty"), "");
     Hibiscus plain =
-        new Hibiscus(URI.create("http://user@127.0.0.1:8080?x=1"), dir.resolve("none.pem"), "admin", empty, Duration.ZERO, TEN);
+        new Hibiscus(
+            URI.create("http://user@127.0.0.1:8080?x=1"),
+            dir.resolve("none.pem"),
+            "admin",
+            empty,
+            Duration.ZERO,
+            TEN);
     Hibiscus missing = new Hibiscus(null, null, "admin", null, TEN, TEN);
 
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus", 14, null, "Europe/Berlin", "-", Duration.ZERO, plain,
+                    "hibiscus",
+                    14,
+                    null,
+                    "Europe/Berlin",
+                    "-",
+                    Duration.ZERO,
+                    plain,
                     List.of(target("company-a", "https://erp-a.example.com")),
                     List.of(new Account(A1, "company-a")))))
         .containsExactly(
             "bankbote.hibiscus.url must use https",
             "bankbote.hibiscus.url must not carry user info, a query or a fragment",
-            "bankbote.hibiscus.certificate: certificate file " + dir.resolve("none.pem") + " cannot be read",
+            "bankbote.hibiscus.certificate: certificate file "
+                + dir.resolve("none.pem")
+                + " cannot be read",
             "bankbote.hibiscus.password-file: secret file " + empty + " is empty",
             "bankbote.hibiscus.connect-timeout must be positive");
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus", 14, null, "Europe/Berlin", "-", Duration.ZERO, missing,
+                    "hibiscus",
+                    14,
+                    null,
+                    "Europe/Berlin",
+                    "-",
+                    Duration.ZERO,
+                    missing,
                     List.of(target("company-a", "https://erp-a.example.com")),
                     List.of(new Account(A1, "company-a")))))
         .containsExactly(
@@ -205,18 +263,46 @@ class ConfigurationCheckTest {
     Path garbage = Files.writeString(dir.resolve("garbage.pem"), "");
     List<Target> targets =
         List.of(
-            new Target("Company A", URI.create("http://erp-a.example.com"), null, dir.resolve("missing"), garbage, false, TEN, Duration.ZERO),
-            new Target("company-b", URI.create("ftp://erp-b.example.com#x"), key, secret, null, false, TEN, TEN),
+            new Target(
+                "Company A",
+                URI.create("http://erp-a.example.com"),
+                null,
+                dir.resolve("missing"),
+                garbage,
+                false,
+                TEN,
+                Duration.ZERO),
+            new Target(
+                "company-b",
+                URI.create("ftp://erp-b.example.com#x"),
+                key,
+                secret,
+                null,
+                false,
+                TEN,
+                TEN),
             new Target(null, null, key, secret, null, false, TEN, TEN),
-            new Target("company-d", URI.create("http://erp-d.example.com"), key, secret, null, true, TEN, TEN));
+            new Target(
+                "company-d",
+                URI.create("http://erp-d.example.com"),
+                key,
+                secret,
+                null,
+                true,
+                TEN,
+                TEN));
 
     assertThat(problems(properties(targets, List.of(new Account(A1, "company-d")))))
         .containsExactly(
             "bankbote.targets[0].name must be 1 to 63 lowercase letters, digits or dashes",
             "bankbote.targets[0].url must use https, or http with allow-plain-http",
             "bankbote.targets[0].api-key-file: no secret file configured",
-            "bankbote.targets[0].api-secret-file: secret file " + dir.resolve("missing") + " cannot be read",
-            "bankbote.targets[0].certificate-authorities: certificate file " + garbage + " holds no certificate",
+            "bankbote.targets[0].api-secret-file: secret file "
+                + dir.resolve("missing")
+                + " cannot be read",
+            "bankbote.targets[0].certificate-authorities: certificate file "
+                + garbage
+                + " holds no certificate",
             "bankbote.targets[0].request-timeout must be positive",
             "bankbote.targets[1].url must use https, or http with allow-plain-http",
             "bankbote.targets[1].url must not carry user info, a query or a fragment",
@@ -232,5 +318,90 @@ class ConfigurationCheckTest {
     assertThat(exception.problems()).containsExactly("first", "second");
     assertThat(exception)
         .hasMessage("the configuration of Bankbote has 2 problem(s):\n  - first\n  - second");
+  }
+
+  @Test
+  void refusesMissingGeneralSettings() {
+    BankboteProperties properties =
+        new BankboteProperties(
+            null,
+            10000,
+            null,
+            null,
+            null,
+            null,
+            hibiscus(),
+            List.of(target("company-a", "https://erp-a.example.com")),
+            List.of(new Account(A1, "company-a")));
+
+    assertThat(problems(properties))
+        .containsExactly(
+            "bankbote.source-key must be 1 to 32 lowercase letters, digits or dashes",
+            "bankbote.lookback-days must be between 1 and 9999",
+            "bankbote.time-zone is not a time zone: null",
+            "bankbote.schedule is neither a cron expression nor -",
+            "bankbote.notify-delay must not be negative");
+  }
+
+  @Test
+  void checksUrlsTimeoutsTargetsAndAuthoritiesInEveryCombination() {
+    Hibiscus queried =
+        new Hibiscus(
+            URI.create("https://127.0.0.1:8080/?q"),
+            pem,
+            "admin",
+            password,
+            null,
+            Duration.ofSeconds(-1));
+    List<Target> targets =
+        List.of(
+            new Target(
+                null,
+                URI.create("https://erp-x.example.com/#f"),
+                key,
+                secret,
+                pem,
+                false,
+                TEN,
+                TEN),
+            new Target(
+                "company-a",
+                URI.create("https://erp-a.example.com"),
+                key,
+                secret,
+                pem,
+                false,
+                TEN,
+                TEN),
+            new Target(
+                "company-a",
+                URI.create("https://erp-a.example.com"),
+                key,
+                secret,
+                null,
+                false,
+                TEN,
+                TEN));
+
+    assertThat(
+            problems(
+                new BankboteProperties(
+                    "hibiscus",
+                    14,
+                    null,
+                    "Europe/Berlin",
+                    "-",
+                    Duration.ZERO,
+                    queried,
+                    targets,
+                    List.of(new Account(A1, " ")))))
+        .containsExactly(
+            "bankbote.hibiscus.url must not carry user info, a query or a fragment",
+            "bankbote.hibiscus.connect-timeout must be positive",
+            "bankbote.hibiscus.request-timeout must be positive",
+            "bankbote.targets[0].name must be 1 to 63 lowercase letters, digits or dashes",
+            "bankbote.targets[0].url must not carry user info, a query or a fragment",
+            "bankbote.targets: the name company-a is used 2 times",
+            "bankbote.accounts[0].target is missing");
   }
 }

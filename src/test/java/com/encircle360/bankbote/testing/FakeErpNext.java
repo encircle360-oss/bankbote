@@ -101,13 +101,12 @@ public final class FakeErpNext implements AutoCloseable {
       return list(
           bankAccounts.stream()
               .filter(account -> matches(account, query))
-              .map(
-                  account -> {
-                    ObjectNode node = JSON.createObjectNode();
-                    node.put("name", account.name());
-                    node.put("iban", account.iban());
-                    return node;
-                  })
+              .map(account -> {
+                ObjectNode node = JSON.createObjectNode();
+                node.put("name", account.name());
+                node.put("iban", account.iban());
+                return node;
+              })
               .toList(),
           query);
     }
@@ -174,11 +173,12 @@ public final class FakeErpNext implements AutoCloseable {
   private static boolean matches(ObjectNode doc, Map<String, String> query) {
     Map<String, Object> fields = new LinkedHashMap<>();
     doc.properties()
-        .forEach(
-            entry ->
-                fields.put(
-                    entry.getKey(),
-                    entry.getValue().isNumber() ? entry.getValue().asInt() : entry.getValue().asString()));
+        .forEach(entry ->
+            fields.put(
+                entry.getKey(),
+                entry.getValue().isNumber()
+                    ? entry.getValue().asInt()
+                    : entry.getValue().asString()));
     return matches(fields, query);
   }
 

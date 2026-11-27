@@ -33,7 +33,13 @@ class IbanTest {
 
   @ParameterizedTest
   @NullAndEmptySource
-  @ValueSource(strings = {"DE", "1E17123456780000000001", "DE1X123456780000000001", "DE17-23456780000000001"})
+  @ValueSource(
+      strings = {
+        "DE",
+        "1E17123456780000000001",
+        "DE1X123456780000000001",
+        "DE17-23456780000000001"
+      })
   void rejectsMalformedValuesWithoutRepeatingThem(String value) {
     assertThatThrownBy(() -> Iban.parse(value))
         .isInstanceOf(IllegalArgumentException.class)

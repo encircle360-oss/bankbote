@@ -27,7 +27,8 @@ class TlsContextsTest {
 
   private static int get(SSLContext context, URI uri) throws IOException, InterruptedException {
     try (HttpClient client = HttpClient.newBuilder().sslContext(context).build()) {
-      return client.send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.discarding())
+      return client
+          .send(HttpRequest.newBuilder(uri).build(), HttpResponse.BodyHandlers.discarding())
           .statusCode();
     }
   }
@@ -60,7 +61,8 @@ class TlsContextsTest {
     try (FakeHttpServer server = FakeHttpServer.https(other.serverContext())) {
       SSLContext context = TlsContexts.pinned(configured.pem());
 
-      assertThatThrownBy(() -> get(context, server.uri())).isInstanceOf(SSLHandshakeException.class);
+      assertThatThrownBy(() -> get(context, server.uri()))
+          .isInstanceOf(SSLHandshakeException.class);
       assertThat(server.requests()).isEmpty();
     }
   }
@@ -97,7 +99,8 @@ class TlsContextsTest {
     TestCertificate second = TestCertificate.create(dir, "second");
     Path both =
         Files.writeString(
-            dir.resolve("both.pem"), Files.readString(first.pem()) + Files.readString(second.pem()));
+            dir.resolve("both.pem"),
+            Files.readString(first.pem()) + Files.readString(second.pem()));
 
     assertThatThrownBy(() -> TlsContexts.pinned(both))
         .isInstanceOf(TlsConfigurationException.class)
@@ -107,7 +110,8 @@ class TlsContextsTest {
   @Test
   void refusesFilesWithoutCertificates() throws IOException {
     Path empty = Files.writeString(dir.resolve("empty.pem"), "");
-    Path garbage = Files.writeString(dir.resolve("garbage.pem"), "-----BEGIN CERTIFICATE-----\nnope\n");
+    Path garbage =
+        Files.writeString(dir.resolve("garbage.pem"), "-----BEGIN CERTIFICATE-----\nnope\n");
     Path missing = dir.resolve("missing.pem");
 
     assertThatThrownBy(() -> TlsContexts.pinned(empty))
@@ -142,7 +146,8 @@ class TlsContextsTest {
     try (FakeHttpServer server = FakeHttpServer.https(certificate.serverContext())) {
       SSLContext context = TlsContexts.trustingAuthorities(certificate.pem());
 
-      assertThatThrownBy(() -> get(context, server.uri())).isInstanceOf(SSLHandshakeException.class);
+      assertThatThrownBy(() -> get(context, server.uri()))
+          .isInstanceOf(SSLHandshakeException.class);
     }
   }
 
@@ -153,5 +158,15 @@ class TlsContextsTest {
       assertThatThrownBy(() -> get(TlsContexts.system(), server.uri()))
           .isInstanceOf(SSLHandshakeException.class);
     }
+  }
+
+  @Test
+  void aJdkWithoutTlsEndsInAnIllegalState() {
+    assertThatThrownBy(() ->
+            TlsContexts.jdk(() -> {
+              throw new java.security.NoSuchAlgorithmException("TLS");
+            }))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("the TLS of the JDK is not available");
   }
 }

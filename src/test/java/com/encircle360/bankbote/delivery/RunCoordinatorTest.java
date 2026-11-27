@@ -35,7 +35,8 @@ class RunCoordinatorTest {
     return new RunReport(CLOCK.instant(), CLOCK.instant(), from, null, List.of(), List.of());
   }
 
-  private RunCoordinator coordinator(Function<LocalDate, RunReport> run, LocalDate backfill, Duration delay) {
+  private RunCoordinator coordinator(
+      Function<LocalDate, RunReport> run, LocalDate backfill, Duration delay) {
     coordinator =
         new RunCoordinator(
             from -> {
@@ -134,7 +135,8 @@ class RunCoordinatorTest {
   }
 
   @Test
-  void anUnexpectedErrorEndsTheRunWithAReportAndTheNextRunStillHappens() throws InterruptedException {
+  void anUnexpectedErrorEndsTheRunWithAReportAndTheNextRunStillHappens()
+      throws InterruptedException {
     AtomicInteger calls = new AtomicInteger();
     coordinator(
         from -> {
@@ -151,7 +153,8 @@ class RunCoordinatorTest {
     coordinator.requestRun();
     RunReport ok = next();
 
-    assertThat(failed.sourceError()).isEqualTo("the run failed unexpectedly: IllegalStateException");
+    assertThat(failed.sourceError())
+        .isEqualTo("the run failed unexpectedly: IllegalStateException");
     assertThat(failed.successful()).isFalse();
     assertThat(ok.successful()).isTrue();
   }

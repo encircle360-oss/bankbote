@@ -52,6 +52,9 @@ public final class FakeHttpServer implements AutoCloseable {
     Response handle(Request request) throws Exception;
   }
 
+  /** A response header that makes the server announce more bytes than it sends and hang up. */
+  public static final String TRUNCATE = "X-Fake-Truncate";
+
   private final HttpServer server;
   private final String scheme;
   private final List<Request> requests = new CopyOnWriteArrayList<>();
@@ -119,6 +122,12 @@ public final class FakeHttpServer implements AutoCloseable {
       byte[] bytes = response.body().getBytes(StandardCharsets.UTF_8);
       exchange.getResponseHeaders().set("Content-Type", response.contentType());
       response.headers().forEach((name, value) -> exchange.getResponseHeaders().set(name, value));
+      if (response.headers().containsKey(TRUNCATE)) {
+        exchange.sendResponseHeaders(response.status(), bytes.length + 1000L);
+        exchange.getResponseBody().write(bytes);
+        exchange.getResponseBody().flush();
+        return;
+      }
       exchange.sendResponseHeaders(response.status(), bytes.length == 0 ? -1 : bytes.length);
       if (bytes.length > 0) {
         exchange.getResponseBody().write(bytes);

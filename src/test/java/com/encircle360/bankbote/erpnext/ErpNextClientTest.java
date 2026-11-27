@@ -83,10 +83,13 @@ class ErpNextClientTest {
 
     List<CompanyBankAccount> accounts = client.companyBankAccounts();
 
-    assertThat(accounts).hasSize(5).first().isEqualTo(new CompanyBankAccount("Account 0", "DE17 1234"));
+    assertThat(accounts)
+        .hasSize(5)
+        .first()
+        .isEqualTo(new CompanyBankAccount("Account 0", "DE17 1234"));
     assertThat(erp.requests())
-        .allSatisfy(
-            request -> assertThat(request.header("Authorization")).isEqualTo("token key-a:secret-a"));
+        .allSatisfy(request ->
+            assertThat(request.header("Authorization")).isEqualTo("token key-a:secret-a"));
     assertThat(erp.requests()).hasSize(3);
     assertThat(erp.requests().getFirst().uri().getQuery())
         .contains("filters=[[\"is_company_account\",\"=\",1]]")
@@ -100,8 +103,7 @@ class ErpNextClientTest {
         .existing("hibiscus:2", "Main account - EX", 0)
         .existing("hibiscus:1", "Other account - EX", 1)
         .existing("hibiscus:99", "Main account - EX", 2);
-    List<String> ids =
-        IntStream.rangeClosed(1, 120).mapToObj(i -> "hibiscus:" + i).toList();
+    List<String> ids = IntStream.rangeClosed(1, 120).mapToObj(i -> "hibiscus:" + i).toList();
 
     List<ExistingTransaction> existing = client.existing("Main account - EX", ids);
 
@@ -181,11 +183,9 @@ class ErpNextClientTest {
 
   @Test
   void classifiesErrorsWithoutRepeatingTheBodyOrTheSecret() {
-    erp.override(
-        request ->
-            Response.json(
-                417,
-                "{\"exc_type\":\"ValidationError\",\"exception\":\"secret-a Example Trading\"}"));
+    erp.override(request ->
+        Response.json(
+            417, "{\"exc_type\":\"ValidationError\",\"exception\":\"secret-a Example Trading\"}"));
     assertThatThrownBy(() -> client.insertSubmitted(document("hibiscus:41")))
         .isInstanceOfSatisfying(
             ErpNextException.class, e -> assertThat(e.kind()).isEqualTo(Kind.REJECTED))
@@ -235,33 +235,32 @@ class ErpNextClientTest {
   @Test
   void neverFollowsARedirectAndNeverSendsTheTokenElsewhere() {
     try (FakeHttpServer elsewhere = FakeHttpServer.http()) {
-      erp.override(
-          request ->
-              new Response(
-                  307,
-                  "text/plain",
-                  "",
-                  Map.of("Location", elsewhere.uri() + request.uri().toString())));
+      erp.override(request ->
+          new Response(
+              307,
+              "text/plain",
+              "",
+              Map.of("Location", elsewhere.uri() + request.uri().toString())));
 
       assertThatThrownBy(() -> client.companyBankAccounts())
           .isInstanceOfSatisfying(
               ErpNextException.class, e -> assertThat(e.kind()).isEqualTo(Kind.UNAVAILABLE))
-          .hasMessage("ERPNext company-a answered with a redirect (HTTP 307), which Bankbote does not follow");
+          .hasMessage(
+              "ERPNext company-a answered with a redirect (HTTP 307), which Bankbote does not follow");
       assertThat(elsewhere.requests()).isEmpty();
     }
   }
 
   @Test
   void reportsAnUnreachableOrSlowTarget() throws IOException {
-    erp.override(
-        request -> {
-          try {
-            Thread.sleep(2000);
-          } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-          }
-          return Response.json(200, "{\"data\":[]}");
-        });
+    erp.override(request -> {
+      try {
+        Thread.sleep(2000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      return Response.json(200, "{\"data\":[]}");
+    });
     ErpNextClient impatient = client(erp.server().uri(), Duration.ofMillis(200));
 
     assertThatThrownBy(impatient::companyBankAccounts)
@@ -278,12 +277,14 @@ class ErpNextClientTest {
 
   @Test
   void keepsAPathPrefixOfTheBaseUrl() throws Exception {
-    ErpNextClient prefixed = client(URI.create(erp.server().uri() + "/erp/"), Duration.ofSeconds(5));
+    ErpNextClient prefixed =
+        client(URI.create(erp.server().uri() + "/erp/"), Duration.ofSeconds(5));
     erp.override(request -> Response.json(200, "{\"data\":[]}"));
 
     prefixed.companyBankAccounts();
 
-    assertThat(erp.requests().getFirst().uri().getRawPath()).isEqualTo("/erp/api/resource/Bank%20Account");
+    assertThat(erp.requests().getFirst().uri().getRawPath())
+        .isEqualTo("/erp/api/resource/Bank%20Account");
   }
 
   @Test
@@ -291,5 +292,51 @@ class ErpNextClientTest {
     assertThat(document("hibiscus:41").toString())
         .isEqualTo("BankTransactionDocument[transactionId=hibiscus:41]")
         .doesNotContain("Example");
+  }
+
+  @Test
+  void refusesAnswersOfTheWrongShape() {
+    erp.override(request -> Response.json(200, "[]"));
+    assertThatThrownBy(() -> client.companyBankAccounts())
+        .hasMessage("ERPNext company-a answered with something Bankbote cannot read");
+
+    erp.override(request -> Response.json(200, "{\"data\":[]}"));
+    assertThatThrownBy(() -> client.insertSubmitted(document("x")))
+        .hasMessage("ERPNext company-a answered with something Bankbote cannot read");
+
+    erp.override(request -> Response.json(409, "<html>"));
+    assertThatThrownBy(() -> client.insertSubmitted(document("x")))
+        .hasMessage("ERPNext company-a rejected the request (HTTP 409)");
+  }
+
+  @Test
+  void readsMissingAndNullFieldsAsEmpty() throws ErpNextException {
+    erp.override(request ->
+        Response.json(200, "{\"data\":[{\"name\":\"A\",\"iban\":null},{\"name\":\"B\"}]}"));
+
+    assertThat(client.companyBankAccounts())
+        .containsExactly(new CompanyBankAccount("A", ""), new CompanyBankAccount("B", ""));
+    assertThat(new CompanyBankAccount("A", "DE17123456780000000001").toString())
+        .isEqualTo("CompanyBankAccount[name=A]");
+  }
+
+  @Test
+  void anInterruptedRequestEndsAsUnavailable() {
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> client.companyBankAccounts())
+          .isInstanceOfSatisfying(
+              ErpNextException.class, e -> assertThat(e.kind()).isEqualTo(Kind.UNAVAILABLE));
+    } finally {
+      Thread.interrupted();
+    }
+  }
+
+  @Test
+  void onlyAnAuthenticationOrInconsistencyStopsTheTarget() {
+    assertThat(new ErpNextException(Kind.AUTHENTICATION, "x").stopsTheTarget()).isTrue();
+    assertThat(new ErpNextException(Kind.INCONSISTENT, "x").stopsTheTarget()).isTrue();
+    assertThat(new ErpNextException(Kind.REJECTED, "x").stopsTheTarget()).isFalse();
+    assertThat(new ErpNextException(Kind.UNAVAILABLE, "x").stopsTheTarget()).isFalse();
   }
 }
