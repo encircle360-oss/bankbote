@@ -1,8 +1,6 @@
 spring:
   application:
     name: bankbote
-  main:
-    banner-mode: off
 
 # Bankbote listens on the loopback address only: the Hibiscus Server next to it in the same
 # network namespace notifies it, nothing else needs to reach it. See docs/sicherheit.md.
