@@ -10,8 +10,10 @@ import java.time.LocalDate;
  * <p>{@link #toString()} shows only the id: purpose and counterparty are personal data and stay out
  * of logs.
  *
- * @param id the id of the transaction at the source, stable for a booked transaction
+ * @param id the id of the transaction at the source; booked transactions of an account in the order
+ *     of their ids, compared as numbers, are in the order the source received them
  * @param bookingDate the booking date
+ * @param valueDate the value date, or null when the source has none
  * @param amount the amount in the account currency
  * @param pending whether the bank has not booked the transaction yet
  * @param purpose the purpose text
@@ -19,17 +21,20 @@ import java.time.LocalDate;
  * @param counterpartyAccount the IBAN or account number of the counterparty
  * @param type the kind of transaction as the bank names it
  * @param reference the reference that identifies the payment, such as the SEPA end-to-end id
+ * @param bankId the id the bank gave the transaction, as the source holds it
  */
 public record SourceTransaction(
     String id,
     LocalDate bookingDate,
+    LocalDate valueDate,
     BigDecimal amount,
     boolean pending,
     String purpose,
     String counterpartyName,
     String counterpartyAccount,
     String type,
-    String reference) {
+    String reference,
+    String bankId) {
 
   @Override
   public String toString() {

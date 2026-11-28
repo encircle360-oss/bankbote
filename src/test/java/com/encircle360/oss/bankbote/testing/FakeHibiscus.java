@@ -4,8 +4,12 @@ import com.encircle360.oss.bankbote.testing.FakeHttpServer.Request;
 import com.encircle360.oss.bankbote.testing.FakeHttpServer.Response;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +35,7 @@ public final class FakeHibiscus implements AutoCloseable {
   private final String masterPassword;
   private final List<Map<String, String>> accounts = new CopyOnWriteArrayList<>();
   private final Map<String, List<Map<String, String>>> transactions = new ConcurrentHashMap<>();
+  private volatile Clock serverClock;
 
   public FakeHibiscus(Path dir, String masterPassword) {
     this.certificate = TestCertificate.create(dir, "hibiscus-server");
@@ -59,29 +64,49 @@ public final class FakeHibiscus implements AutoCloseable {
 
   /** A booked transaction with an invented counterparty, as the bean writes it. */
   public FakeHibiscus booked(String accountId, String id, String date, String amount) {
-    return add(
+    return add(accountId, row(accountId, id, date, amount));
+  }
+
+  private static Map<String, String> row(String accountId, String id, String date, String amount) {
+    return Map.of(
+        "id",
+        id,
+        "konto_id",
         accountId,
-        Map.of(
-            "id",
-            id,
-            "konto_id",
-            accountId,
-            "datum",
-            date,
-            "valuta",
-            date,
-            "betrag",
-            amount,
-            "zweck",
-            "SVWZ+Invoice " + id,
-            "empfaenger_name",
-            "Example Customer " + id,
-            "empfaenger_konto",
-            "DE87123456780000000002",
-            "art",
-            "SEPA transfer",
-            "endtoendid",
-            "E2E-" + id));
+        "datum",
+        date,
+        "valuta",
+        date,
+        "betrag",
+        amount,
+        "zweck",
+        "SVWZ+Invoice " + id,
+        "empfaenger_name",
+        "Example Customer " + id,
+        "empfaenger_konto",
+        "DE87123456780000000002",
+        "art",
+        "SEPA transfer",
+        "endtoendid",
+        "E2E-" + id);
+  }
+
+  /** A booked transaction that carries an id of the bank in {@code txid}. */
+  public FakeHibiscus bookedWithBankId(
+      String accountId, String id, String date, String amount, String bankId) {
+    Map<String, String> transaction = new HashMap<>(row(accountId, id, date, amount));
+    transaction.put("txid", bankId);
+    return add(accountId, transaction);
+  }
+
+  /**
+   * Cuts the window of {@code umsaetze/days/<n>} as {@code KontoImpl.getUmsaetze(int)} of Hibiscus
+   * does: booking dates from the start of the day {@code n} times 24 hours before now, in the time
+   * zone of this clock. Without a clock every transaction is in the window.
+   */
+  public FakeHibiscus serverClock(Clock clock) {
+    this.serverClock = clock;
+    return this;
   }
 
   /** A pending transaction: {@code flags} holds {@code Umsatz.FLAG_NOTBOOKED}. */
@@ -128,6 +153,16 @@ public final class FakeHibiscus implements AutoCloseable {
     if (matcher.matches()) {
       List<Map<String, String>> list =
           new ArrayList<>(transactions.getOrDefault(matcher.group(1), List.of()));
+      Clock clock = serverClock;
+      if (clock != null) {
+        LocalDate cut =
+            clock
+                .instant()
+                .minus(Duration.ofHours(24L * Long.parseLong(matcher.group(2))))
+                .atZone(clock.getZone())
+                .toLocalDate();
+        list.removeIf(transaction -> LocalDate.parse(transaction.get("datum")).isBefore(cut));
+      }
       return Response.json(200, JSON.writeValueAsString(list.reversed()));
     }
     return Response.json(500, "no command found for REST url " + path);

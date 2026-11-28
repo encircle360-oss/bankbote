@@ -7,6 +7,7 @@ import com.encircle360.oss.bankbote.delivery.AccountReport;
 import com.encircle360.oss.bankbote.delivery.Delivery;
 import com.encircle360.oss.bankbote.delivery.Route;
 import com.encircle360.oss.bankbote.delivery.RunReport;
+import com.encircle360.oss.bankbote.delivery.TransactionIds;
 import com.encircle360.oss.bankbote.integration.ErpNextFixtures;
 import com.encircle360.oss.bankbote.integration.ErpNextFixtures.ApiKey;
 import com.encircle360.oss.bankbote.integration.ErpNextServer;
@@ -208,18 +209,24 @@ class ErpNextIT {
 
   @Test
   void reportsADraftThatHoldsTheTransactionIdAndDoesNotDuplicateIt() throws Exception {
+    SourceTransaction draft = booked("2101", "1.00", "Entwurf", "Beispiel");
+    String draftId = transactionId(A2, draft);
     admin.insert(
         "Bank Transaction",
         Map.of(
-            "date", "2026-11-24",
-            "bank_account", accountA2,
-            "currency", "EUR",
-            "deposit", 1,
-            "transaction_id", "hibiscus:2101"));
+            "date",
+            "2026-11-24",
+            "bank_account",
+            accountA2,
+            "currency",
+            "EUR",
+            "deposit",
+            1,
+            "transaction_id",
+            draftId));
     Delivery delivery =
         new Delivery(
-            source(A2, List.of(booked("2101", "1.00", "Entwurf", "Beispiel"))),
-            "hibiscus",
+            source(A2, List.of(draft)),
             List.of(new Route(Iban.parse(A2), "company-a")),
             List.of(client()),
             CLOCK);
@@ -229,8 +236,8 @@ class ErpNextIT {
 
     assertThat(report.failed()).isEqualTo(1);
     assertThat(report.error())
-        .isEqualTo("ERPNext company-a holds hibiscus:2101 as a draft; submit or delete it there");
-    assertThat(client().existing(accountA2, List.of("hibiscus:2101"))).hasSize(1);
+        .isEqualTo("ERPNext company-a holds " + draftId + " as a draft; submit or delete it there");
+    assertThat(client().existing(accountA2, List.of(draftId))).hasSize(1);
   }
 
   @Test
@@ -272,13 +279,19 @@ class ErpNextIT {
     return new SourceTransaction(
         id,
         LocalDate.now(CLOCK).minusDays(1),
+        LocalDate.now(CLOCK).minusDays(1),
         new BigDecimal(amount),
         false,
         purpose,
         name,
         "DE06123456780000000005",
         "x".repeat(140),
-        "r".repeat(300));
+        "r".repeat(300),
+        "");
+  }
+
+  private static String transactionId(String iban, SourceTransaction transaction) {
+    return TransactionIds.transactionId(Iban.parse(iban), transaction, 1);
   }
 
   @Test
@@ -299,19 +312,18 @@ class ErpNextIT {
     Delivery delivery =
         new Delivery(
             source(A1, transactions),
-            "hibiscus",
             List.of(new Route(Iban.parse(A1), "company-a")),
             List.of(client()),
             CLOCK);
 
     RunReport first = delivery.run(LocalDate.now(CLOCK).minusDays(14));
     assertThat(first.targets().getFirst().accounts().getFirst())
-        .isEqualTo(new AccountReport("DE17…0001", 3, 3, 0, 0, 0, null));
-    List<ExistingTransaction> delivered =
-        client().existing(accountA1, List.of("hibiscus:5001", "hibiscus:5002", "hibiscus:5003"));
+        .isEqualTo(new AccountReport("DE17…0001", 3, 3, 0, 0, 0, 0, null));
+    List<String> ids = transactions.stream().map(t -> transactionId(A1, t)).toList();
+    List<ExistingTransaction> delivered = client().existing(accountA1, ids);
     String cancel =
         delivered.stream()
-            .filter(t -> t.transactionId().equals("hibiscus:5002"))
+            .filter(t -> t.transactionId().equals(ids.get(1)))
             .findFirst()
             .orElseThrow()
             .name();
@@ -319,13 +331,13 @@ class ErpNextIT {
     RunReport second = delivery.run(LocalDate.now(CLOCK).minusDays(14));
 
     assertThat(second.targets().getFirst().accounts().getFirst())
-        .isEqualTo(new AccountReport("DE17…0001", 3, 0, 3, 0, 0, null));
+        .isEqualTo(new AccountReport("DE17…0001", 3, 0, 3, 0, 0, 0, null));
     assertThat(delivered).hasSize(3).allSatisfy(t -> assertThat(t.docstatus()).isEqualTo(1));
     JsonNode stored =
         admin.get(
             "Bank Transaction",
             delivered.stream()
-                .filter(t -> t.transactionId().equals("hibiscus:5001"))
+                .filter(t -> t.transactionId().equals(ids.getFirst()))
                 .findFirst()
                 .orElseThrow()
                 .name());
@@ -333,10 +345,7 @@ class ErpNextIT {
     assertThat(stored.path("bank_party_name").asString()).isEqualTo(longName);
     assertThat(stored.path("transaction_type").asString()).hasSize(50);
     assertThat(stored.path("reference_number").asString()).hasSize(300);
-    assertThat(
-            client()
-                .existing(accountA1, List.of("hibiscus:5001", "hibiscus:5002", "hibiscus:5003")))
-        .hasSize(3);
+    assertThat(client().existing(accountA1, ids)).hasSize(3);
   }
 
   @Test

@@ -139,4 +139,15 @@ class HibiscusValuesTest {
   void dropsBlankLinesWithinAPart() {
     assertThat(HibiscusValues.joinLines("one\n\n  \ntwo")).isEqualTo("one\ntwo");
   }
+
+  @Test
+  void readsAnOptionalValueDate() {
+    assertThat(HibiscusValues.optionalValueDate("2026-11-26"))
+        .isEqualTo(java.time.LocalDate.of(2026, 11, 26));
+    assertThat(HibiscusValues.optionalValueDate(null)).isNull();
+    assertThat(HibiscusValues.optionalValueDate(" ")).isNull();
+    assertThatThrownBy(() -> HibiscusValues.optionalValueDate("26/11/2026"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("value date is neither yyyy-MM-dd nor dd.MM.yyyy");
+  }
 }

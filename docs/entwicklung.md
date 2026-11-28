@@ -46,10 +46,11 @@ Die Tests laufen auf der JVM und nur gegen Server auf `127.0.0.1`, die sie selbs
 |---|---|
 | `IbanTest`, `SecretTest`, `TlsContextsTest` | IBAN, Geheimnisse, gepinntes Zertifikat und Zertifizierungsstellen |
 | `HibiscusValuesTest` | Beträge mit Exponent, negativ und auf die Nachkommastellen der Währung; Tausendertrenner und Komma werden abgelehnt; Daten, Flags, Referenzen |
-| `HibiscusSourceTest` | die JSON-Beans über HTTPS mit Master-Passwort, vorgemerkte und unlesbare Umsätze, Fenster, Weiterleitungen, fremdes Zertifikat, Zeitlimit, Größengrenze, Zeichensatz |
+| `HibiscusSourceTest` | die JSON-Beans über HTTPS mit Master-Passwort, vorgemerkte und unlesbare Umsätze, Valuta und Transaktions-ID der Bank, Fenster mit vollständigem ersten Tag in jeder Zeitzone des Servers, Weiterleitungen, fremdes Zertifikat, Zeitlimit, Größengrenze, Zeichensatz |
 | `ErpNextClientTest` | Bankkonten seitenweise, vorhandene Umsätze, Anlegen und Einreichen, Fehlerarten, Token nie an eine andere Adresse |
 | `BankTransactionMapperTest` | die Felder des Bankumsatzes |
-| `DeliveryTest` | Mandantentrennung mit zwei und drei Zielen, ausgefallene, langsame und den Schlüssel ablehnende Ziele, Idempotenz, Entwürfe, Zuordnung der Bankkonten, vorgemerkte und unlesbare Umsätze |
+| `TransactionIdsTest` | die `transaction_id`: die Beispiele aus [Architektur](architektur.md#beispiele), Normalisierung, Platzhalter, laufende Nummern, eine neu aufgebaute Quelle |
+| `DeliveryTest` | Mandantentrennung mit zwei und drei Zielen, ausgefallene, langsame und den Schlüssel ablehnende Ziele, Idempotenz auch nach einer neu aufgebauten Quelle, gleiche Umsätze eines Tages, Entwürfe, Zuordnung der Bankkonten, vorgemerkte und unlesbare Umsätze |
 | `RunCoordinatorTest` | ein Lauf zur Zeit, Zusammenfassen von Anfragen, Nachholen, Wartezeit der Benachrichtigung |
 | `ConfigurationCheckTest`, `StartupFailureTest`, `BankboteConfigurationTest` | jede Regel der Konfiguration und der Start mit falscher Zuordnung |
 | `BankboteServiceTest` | der ganze Dienst gegen `FakeHibiscus` und drei `FakeErpNext`, mit Benachrichtigung, Health und Log ohne Geheimnisse und persönliche Daten |

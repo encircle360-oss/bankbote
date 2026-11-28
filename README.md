@@ -29,8 +29,8 @@ Für Unternehmen und Unternehmensgruppen, die ihre Konten mit Hibiscus Server ü
 1. **Auslösen.** Der Hibiscus Server ruft nach dem Abruf eines Kontos seine `notify.url` auf; Bankbote wartet eine einstellbare Zeit (vorgegeben 60 s), damit die Umsätze gespeichert sind, und startet dann einen Lauf. Dazu gibt es einen Lauf nach dem Start und einen nach Zeitplan (vorgegeben stündlich). Es läuft nie mehr als ein Lauf gleichzeitig.
 2. **Lesen.** Bankbote liest die Konten und je zugeordnetem Konto die Umsätze der letzten Tage (vorgegeben 14). Vorgemerkte Umsätze, die die Bank noch nicht gebucht hat, werden erkannt und nie geliefert.
 3. **Zuordnen.** Jedes Konto ist per IBAN genau einem Ziel zugeordnet. Bankbote sucht in diesem ERPNext das eine Bankkonto des Unternehmens mit dieser IBAN und liefert nicht, wenn es keines oder mehrere gibt. Konten ohne Zuordnung gehen nirgendwohin und stehen in der Zusammenfassung.
-4. **Liefern.** Jeder Umsatz bekommt eine feste `transaction_id`, etwa `hibiscus:4711`. Was ERPNext mit dieser Kennung schon hat, wird übersprungen; ein Entwurf mit dieser Kennung wird gemeldet, nicht doppelt angelegt. Zweimal laufen, überlappende Zeiträume und ein Absturz mitten im Lauf erzeugen keine Dubletten.
-5. **Berichten.** Jeder Lauf endet mit einer Zusammenfassung je Ziel und Konto (gefunden, geliefert, schon vorhanden, vorgemerkt, fehlgeschlagen) im Log und im Health-Endpunkt, mit maskierten IBANs und ohne Verwendungszwecke oder Namen.
+4. **Liefern.** Jeder Umsatz bekommt eine feste `transaction_id`, etwa `b1-c-e2a692a01368e5b6c192945bb8bcc12c-1`, berechnet aus Konto, Buchungstag, Betrag und der Transaktions-ID der Bank oder, wenn die Bank keine liefert, Valuta, Gegenkonto und Verwendungszweck; gleiche Umsätze eines Tages werden durchnummeriert. Was ERPNext mit dieser Kennung schon hat, wird übersprungen; ein Entwurf mit dieser Kennung wird gemeldet, nicht doppelt angelegt. Zweimal laufen, überlappende Zeiträume, ein Absturz mitten im Lauf und eine neu aufgebaute Datenbank des Hibiscus Servers erzeugen keine Dubletten.
+5. **Berichten.** Jeder Lauf endet mit einer Zusammenfassung je Ziel und Konto (gefunden, geliefert, schon vorhanden, vorgemerkt, fehlgeschlagen, mit Transaktions-ID der Bank) im Log und im Health-Endpunkt, mit maskierten IBANs und ohne Verwendungszwecke oder Namen.
 
 Einzelheiten: [Architektur](docs/architektur.md).
 
@@ -51,7 +51,7 @@ Was das voraussetzt und wo die Grenzen liegen: [Sicherheit](docs/sicherheit.md).
 
 Jedes Ziel ist ein Mandant: ein ERPNext mit eigener Adresse, eigenem API-Schlüssel und eigenem Geheimnis, jeweils aus eigenen Dateien.
 
-**Ein Unternehmen sieht** in seinem ERPNext die gebuchten Umsätze genau der Konten, die ihm zugeordnet sind, als eingereichte Bankumsätze an seinem eigenen Bankkonto, mit Datum, Betrag, Verwendungszweck, Referenz, Gegenkonto und Art, dazu die `transaction_id` mit der Kennung des Hibiscus Servers.
+**Ein Unternehmen sieht** in seinem ERPNext die gebuchten Umsätze genau der Konten, die ihm zugeordnet sind, als eingereichte Bankumsätze an seinem eigenen Bankkonto, mit Datum, Betrag, Verwendungszweck, Referenz, Gegenkonto und Art, dazu die `transaction_id`, die Bankbote aus dem Umsatz berechnet.
 
 **Ein Unternehmen sieht nicht**: die Konten und Umsätze anderer Unternehmen, auch nicht deren Anzahl; das Master-Passwort oder irgendeinen Zugang zum Hibiscus Server; die Adressen und Schlüssel der anderen Ziele; vorgemerkte Umsätze. Der API-Schlüssel eines Unternehmens erlaubt Bankbote nur, was die Rolle seines Dienstbenutzers erlaubt, siehe [Betrieb](docs/betrieb.md#der-dienstbenutzer-in-erpnext).
 
@@ -143,9 +143,9 @@ Bankbote wird testgetrieben entwickelt; die CI verlangt 100 % Abdeckung von Zeil
 Gegen einen **laufenden Hibiscus Server 2.12.4** mit MariaDB in Containern, mit erfundenen Konten und Umsätzen in seiner Datenbank, in jedem Pull Request:
 
 - Anmeldung mit beliebigem, nicht leerem Benutzernamen, falsches, fehlendes Passwort und leerer Benutzername;
-- Konten mit IBAN und Währung, Datum, Beträge auch ab zehn Millionen in Exponentenschreibweise und mit einer Nachkommastelle, das Kennzeichen „vorgemerkt“ gesetzt, nicht gesetzt und leer, Umlaute und Eurozeichen, Inhaltstyp und Zeichensatz, die Ränder des Fensters, Reihenfolge und das Fehlen einer Grenze bei über 10 000 Umsätzen;
+- Konten mit IBAN und Währung, Datum, Beträge auch ab zehn Millionen in Exponentenschreibweise und mit einer Nachkommastelle, das Kennzeichen „vorgemerkt“ gesetzt, nicht gesetzt und leer, Umlaute und Eurozeichen, Valuta und Transaktions-ID der Bank, Inhaltstyp und Zeichensatz, die Ränder des Fensters, Reihenfolge und das Fehlen einer Grenze bei über 10 000 Umsätzen;
 - das Zertifikat aus dem Schlüsselspeicher des Servers, gepinnt;
-- der ganze Dienst gegen diesen Server und zwei nachgebaute ERPNext.
+- der ganze Dienst gegen diesen Server und zwei nachgebaute ERPNext, auch zwei gleiche Umsätze eines Tages und ein Lauf, der nichts doppelt liefert, nachdem alle Umsätze eines Kontos gelöscht und mit neuen IDs in anderer Reihenfolge wieder eingefügt sind.
 
 Was dabei herauskam, steht unter [Hibiscus Server](docs/hibiscus.md#gegen-einen-laufenden-server-geprüft).
 
@@ -167,6 +167,7 @@ Gegen ein **laufendes ERPNext 16.61** mit MariaDB und Redis in Containern, mit z
 - **Nur Hibiscus Server als Quelle.** Die Quelle ist eine Schnittstelle, eine zweite gibt es noch nicht.
 - **Konten-IDs bis 9999 und Zeiträume bis 9999 Tage.** Mehr lassen die Pfade der JSON-Beans nicht zu.
 - **Eine Instanz je Hibiscus Server.** Zwei Bankbote-Instanzen am selben Hibiscus Server und denselben Zielen könnten sich überholen und Dubletten anlegen; die Sperre gegen gleichzeitige Läufe gilt je Prozess.
+- **Die `transaction_id` folgt aus dem Umsatz.** Sie übersteht eine neu aufgebaute Datenbank des Hibiscus Servers, ein neu abgerufenes Konto und einen Wechsel der Quelle mit denselben Daten der Bank. Sie übersteht nicht, dass die Bank ihre Transaktions-ID neu oder nicht mehr liefert oder für Umsätze ohne ID andere Texte schickt: Dann wird das Fenster eines Laufs ein zweites Mal geliefert. Ändert eine Bank einen gebuchten Umsatz nachträglich, kommt er als neuer an. Kennungen von 0.1.x erkennt 0.2.0 nicht wieder, siehe [Updates](docs/betrieb.md#von-01x-auf-020). Einzelheiten: [Architektur](docs/architektur.md#die-kennung-transaction_id).
 - **Kein Löschen, kein Ändern.** Was einmal in ERPNext ist, ändert Bankbote nicht, auch nicht, wenn es im Hibiscus Server geändert oder gelöscht wird. Ein in ERPNext stornierter Umsatz bleibt storniert.
 - **Die Benachrichtigung des Hibiscus Servers ist ein Hinweis.** Sie kommt je Konto nach dem Saldenabruf, nicht nach dem Umsatzabruf, und nur, wenn der Saldo mit synchronisiert wird. Der Zeitplan fängt auf, was sie verpasst.
 - **Verwendungszwecke, wie Hibiscus sie speichert.** Die Zeilen werden zusammengesetzt, SEPA-Kennzeichen wie `EREF+` bleiben stehen.

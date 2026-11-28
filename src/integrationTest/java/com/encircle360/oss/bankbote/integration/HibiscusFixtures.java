@@ -54,6 +54,8 @@ public final class HibiscusFixtures {
     private String customerReference;
     private String endToEndId;
     private Integer flags;
+    private LocalDate valueDate;
+    private String bankId;
 
     private Row(String accountId, LocalDate date, double amount) {
       this.accountId = accountId;
@@ -87,6 +89,18 @@ public final class HibiscusFixtures {
     public Row references(String endToEnd, String customer) {
       this.endToEndId = endToEnd;
       this.customerReference = customer;
+      return this;
+    }
+
+    /** The column {@code valuta}; without it the booking date. */
+    public Row valueDate(LocalDate value) {
+      this.valueDate = value;
+      return this;
+    }
+
+    /** The column {@code txid}, the id the bank gave the transaction. */
+    public Row bankId(String value) {
+      this.bankId = value;
       return this;
     }
 
@@ -129,14 +143,14 @@ public final class HibiscusFixtures {
     return connection.prepareStatement(
         "INSERT INTO umsatz (konto_id, datum, valuta, betrag, zweck, zweck2, zweck3,"
             + " empfaenger_name, empfaenger_name2, empfaenger_konto, art, customerref, endtoendid,"
-            + " flags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            + " flags, txid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         Statement.RETURN_GENERATED_KEYS);
   }
 
   private static void bind(PreparedStatement insert, Row row) throws SQLException {
     insert.setInt(1, Integer.parseInt(row.accountId));
     insert.setDate(2, Date.valueOf(row.date));
-    insert.setDate(3, Date.valueOf(row.date));
+    insert.setDate(3, Date.valueOf(row.valueDate == null ? row.date : row.valueDate));
     insert.setDouble(4, row.amount);
     insert.setString(5, row.purpose);
     insert.setString(6, row.purpose2);
@@ -151,6 +165,17 @@ public final class HibiscusFixtures {
       insert.setNull(14, Types.INTEGER);
     } else {
       insert.setInt(14, row.flags);
+    }
+    insert.setString(15, row.bankId);
+  }
+
+  /** Deletes every transaction of an account, as when the account is removed and fetched again. */
+  public void deleteTransactions(String accountId) throws SQLException {
+    try (Connection connection = server.database();
+        PreparedStatement delete =
+            connection.prepareStatement("DELETE FROM umsatz WHERE konto_id = ?")) {
+      delete.setInt(1, Integer.parseInt(accountId));
+      delete.executeUpdate();
     }
   }
 

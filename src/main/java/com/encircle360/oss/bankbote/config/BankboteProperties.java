@@ -12,8 +12,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * The configuration of Bankbote under {@code bankbote.*}. Secrets are never values here, only paths
  * of files; {@link ConfigurationCheck} checks everything at start.
  *
- * @param sourceKey the first part of every transaction id, the same for the life of a Hibiscus
- *     Server
  * @param lookbackDays how many days back a regular run looks
  * @param backfillFrom the first booking date of the first run after the start, or null
  * @param timeZone the time zone that decides which day today is
@@ -25,7 +23,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  */
 @ConfigurationProperties("bankbote")
 public record BankboteProperties(
-    @DefaultValue("hibiscus") String sourceKey,
     @DefaultValue("14") int lookbackDays,
     LocalDate backfillFrom,
     @DefaultValue("Europe/Berlin") String timeZone,

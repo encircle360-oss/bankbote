@@ -113,7 +113,7 @@ In jedem ERPNext einen eigenen Benutzer nur für Bankbote anlegen, als *System U
 Die Suite `erpnextTest` legt genau diese Rolle in einem echten ERPNext 16.61 an und belegt (siehe [Entwicklung](entwicklung.md#integrationstests)):
 
 - **Genug:** Mit diesen Rechten liest Bankbote die Bankkonten aller Unternehmen der Site, findet vorhandene Umsätze und legt Umsätze mit `docstatus` 1 an, die ERPNext in derselben Anfrage einreicht. Weitere Rechte, etwa auf Currency oder Company, braucht das nicht; das Unternehmen ergänzt ERPNext selbst aus dem Bankkonto.
-- **Einen Entwurf einreichen kann die Rolle nicht:** Das braucht das Recht Write auf Bank Transaction (HTTP 403 mit `PUT … {"docstatus": 1}` wie mit `frappe.client.submit`). Bankbote reicht deshalb keinen Entwurf ein. Hält ERPNext eine `transaction_id` von Bankbote als Entwurf, etwa von Hand angelegt, zählt der Umsatz als fehlgeschlagen mit der Meldung `… holds hibiscus:… as a draft; submit or delete it there`, und Bankbote legt ihn nicht ein zweites Mal an. Den Entwurf reicht ein Mensch ein oder löscht ihn.
+- **Einen Entwurf einreichen kann die Rolle nicht:** Das braucht das Recht Write auf Bank Transaction (HTTP 403 mit `PUT … {"docstatus": 1}` wie mit `frappe.client.submit`). Bankbote reicht deshalb keinen Entwurf ein. Hält ERPNext eine `transaction_id` von Bankbote als Entwurf, etwa von Hand angelegt, zählt der Umsatz als fehlgeschlagen mit der Meldung `… holds b1-…-1 as a draft; submit or delete it there`, und Bankbote legt ihn nicht ein zweites Mal an. Den Entwurf reicht ein Mensch ein oder löscht ihn.
 - **Nicht mehr:** Der Schlüssel liest keine Ausgangsrechnungen, Buchungen (GL Entry), Kunden, Sachkonten und keine Benutzer im Einzelnen (HTTP 403), legt keine Bankkonten an, ändert und löscht keine (403) und storniert und löscht keine Bankumsätze (403). **Die Namen** aller Benutzer (ihre E-Mail-Adressen) und aller Unternehmen der Site kann er auflisten; das erlaubt Frappe jedem System User.
 
 Für ein ERPNext mit mehreren Unternehmen kann eine User Permission auf *Company* den Benutzer zusätzlich auf die Unternehmen beschränken, deren Konten Bankbote liefert; das ist nicht getestet.
@@ -159,7 +159,7 @@ Nur der erste Lauf nach dem Start geht bis dorthin zurück, danach gilt wieder `
           "successful": true,
           "error": null,
           "accounts": [
-            {"iban": "DE17…0001", "found": 12, "delivered": 3, "existing": 8, "pending": 1, "failed": 0, "error": null}
+            {"iban": "DE17…0001", "found": 12, "delivered": 3, "existing": 8, "pending": 1, "failed": 0, "withBankId": 11, "error": null}
           ]
         }
       ],
@@ -192,12 +192,12 @@ Der Probe-Port ist ein zweiter Listener desselben Servers. Er vergleicht Methode
 Das Log hat je Lauf eine Zeile je Konto und Ziel, eine je Konto ohne Zuordnung und eine Schlusszeile:
 
 ```text
-target unternehmen-a account DE17…0001: found 12, delivered 3, existing 8, pending 1, failed 0
+target unternehmen-a account DE17…0001: found 12, delivered 3, existing 8, pending 1, failed 0, with bank id 11
 account DE06…0005 (id 5 at the source) is mapped to no target; its 4 transaction(s) in the window go nowhere
 run from 2026-11-13 succeeded in 2104 ms
 ```
 
-Fehler stehen als `WARN` mit Grund, etwa `ERPNext unternehmen-b is unavailable (HTTP 503)`. Das Log enthält nie Geheimnisse, volle IBANs, Beträge, Verwendungszwecke oder Namen.
+`with bank id` (im Health-Endpunkt `withBankId`) zählt die gebuchten Umsätze, denen die Bank eine eigene Transaktions-ID gegeben hat; steht dort bei einem Konto immer 0, liefert die Bank keine, und die `transaction_id` folgt aus dem Inhalt, siehe [Architektur](architektur.md#die-kennung-transaction_id). Fehler stehen als `WARN` mit Grund, etwa `ERPNext unternehmen-b is unavailable (HTTP 503)`. Das Log enthält nie Geheimnisse, volle IBANs, Beträge, Verwendungszwecke oder Namen.
 
 ## Kubernetes: neben dem Hibiscus Server
 
@@ -325,3 +325,9 @@ spec:
 Ein neues Image ersetzt das alte; Bankbote hat keinen Zustand außer dem Bericht des letzten Laufs. Nach dem Start holt der erste Lauf nach, was in der Zwischenzeit gebucht wurde, soweit es im Fenster liegt. War Bankbote länger aus als `lookback-days`, einmal mit `backfill-from` starten.
 
 Nur eine Instanz je Hibiscus Server betreiben, siehe [Architektur](architektur.md#idempotenz).
+
+### Von 0.1.x auf 0.2.0
+
+0.2.0 bildet die `transaction_id` neu, aus dem Umsatz statt aus der ID im Hibiscus Server, siehe [Architektur](architektur.md#die-kennung-transaction_id). Kennungen von 0.1.x (`hibiscus:4711`) erkennt 0.2.0 nicht wieder. Der erste Lauf nach dem Update liefert deshalb alle Umsätze im Fenster (`lookback-days`, beim Nachholen ab `backfill-from`) ein zweites Mal.
+
+Vor dem Update entweder in jedem ERPNext die Bankumsätze von Bankbote aus diesem Fenster stornieren und löschen, erkennbar an einer `transaction_id`, die mit `hibiscus:` beginnt, oder die Dubletten nach dem Update stornieren und löschen; sie tragen dann eine `transaction_id`, die mit `b1-` beginnt, und dieselben Daten. Ist ein alter Umsatz schon abgeglichen, die neue Dublette löschen statt des alten. `bankbote.source-key` kann aus der Konfiguration entfernt werden; bleibt er stehen, schreibt Bankbote beim Start eine Warnung und startet trotzdem.

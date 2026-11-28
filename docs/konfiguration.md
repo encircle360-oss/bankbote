@@ -44,12 +44,13 @@ Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer
 
 | Schlüssel | Vorgabe | Bedeutung und Prüfung |
 |---|---|---|
-| `bankbote.source-key` | `hibiscus` | erster Teil jeder `transaction_id`. 1 bis 32 Kleinbuchstaben, Ziffern oder Bindestriche. **Nie ändern**, solange ein Hibiscus Server seine Ziele beliefert: Mit anderem Schlüssel erkennt Bankbote nichts Geliefertes wieder. Zwei Hibiscus Server an denselben Zielen brauchen verschiedene Schlüssel |
 | `bankbote.lookback-days` | `14` | wie viele Tage ein Lauf zurückschaut, 1 bis 9999. Ein Fenster, das länger ist als die längste Pause des Hibiscus Servers, verpasst nichts |
 | `bankbote.backfill-from` | – | erster Buchungstag des ersten Laufs nach dem Start, `JJJJ-MM-TT`, nicht in der Zukunft. Danach gilt wieder `lookback-days`. Siehe [Nachholen](betrieb.md#nachholen) |
 | `bankbote.time-zone` | `Europe/Berlin` | Zeitzone, die bestimmt, welcher Tag heute ist, für Fenster und Zeitplan |
 | `bankbote.schedule` | `0 0 * * * *` | Zeitplan als Cron-Ausdruck von Spring (Sekunde, Minute, Stunde, Tag, Monat, Wochentag), `-` für keinen |
 | `bankbote.notify-delay` | `60s` | Wartezeit nach einer Benachrichtigung des Hibiscus Servers und vor der einmaligen Wiederholung eines Laufs, der die Quelle nicht lesen konnte; nicht negativ |
+
+`bankbote.source-key` (Umgebungsvariable `BANKBOTE_SOURCE_KEY`) gibt es seit 0.2.0 nicht mehr: Die `transaction_id` hängt nicht mehr von der Quelle ab, siehe [Architektur](architektur.md#die-kennung-transaction_id). Eine Konfiguration, die den Schlüssel noch setzt, startet weiter; Bankbote ignoriert ihn und schreibt beim Start eine Warnung `bankbote.source-key has no effect since 0.2.0 …` ins Log. Der Schlüssel kann entfernt werden.
 
 ## Hibiscus Server
 
@@ -92,7 +93,6 @@ Jede IBAN darf nur einmal vorkommen, auch nicht einmal je Ziel. Mindestens ein K
 
 ```yaml
 bankbote:
-  source-key: hibiscus
   lookback-days: 14
   hibiscus:
     url: https://127.0.0.1:8080

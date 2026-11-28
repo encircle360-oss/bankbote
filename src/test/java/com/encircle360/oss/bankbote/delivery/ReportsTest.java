@@ -18,11 +18,11 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 @ExtendWith(OutputCaptureExtension.class)
 class ReportsTest {
 
-  private static final AccountReport OK = new AccountReport("DE17…0001", 2, 2, 0, 0, 0, null);
+  private static final AccountReport OK = new AccountReport("DE17…0001", 2, 2, 0, 0, 0, 1, null);
   private static final AccountReport FAILED =
-      new AccountReport("DE87…0002", 1, 0, 0, 0, 1, "ERPNext a is unavailable (HTTP 503)");
+      new AccountReport("DE87…0002", 1, 0, 0, 0, 1, 0, "ERPNext a is unavailable (HTTP 503)");
   private static final AccountReport WARNED =
-      new AccountReport("DE60…0003", 0, 0, 0, 0, 0, "the source has no account with this IBAN");
+      new AccountReport("DE60…0003", 0, 0, 0, 0, 0, 0, "the source has no account with this IBAN");
 
   @Test
   void aTargetSucceedsOnlyWithoutAnyErrorOrFailure() {
@@ -53,13 +53,14 @@ class ReportsTest {
     assertThat(output.getAll())
         .contains("target company-a: ERPNext company-a is unavailable (HTTP 503)")
         .contains(
-            "target company-a account DE17…0001: found 2, delivered 2, existing 0, pending 0, failed 0")
+            "target company-a account DE17…0001: found 2, delivered 2, existing 0, pending 0, failed 0,"
+                + " with bank id 1")
         .contains(
             "WARN",
-            "target company-a account DE87…0002: found 1, delivered 0, existing 0, pending 0, failed 1"
-                + " (ERPNext a is unavailable (HTTP 503))")
+            "target company-a account DE87…0002: found 1, delivered 0, existing 0, pending 0, failed 1,"
+                + " with bank id 0 (ERPNext a is unavailable (HTTP 503))")
         .contains(
-            "target company-a account DE60…0003: found 0, delivered 0, existing 0, pending 0, failed 0 (the source has no account with this IBAN)")
+            "target company-a account DE60…0003: found 0, delivered 0, existing 0, pending 0, failed 0, with bank id 0 (the source has no account with this IBAN)")
         .contains(
             "account DE06…0005 (id 5 at the source) is mapped to no target; its 2 transaction(s)")
         .contains(

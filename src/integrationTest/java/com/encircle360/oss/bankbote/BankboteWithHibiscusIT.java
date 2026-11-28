@@ -62,6 +62,11 @@ class BankboteWithHibiscusIT {
   static String pending;
   static String bookedB;
   static String unmapped;
+  static HibiscusFixtures fixtures;
+  static String accountA;
+  static HibiscusFixtures.Row bookedRow;
+  static HibiscusFixtures.Row cardRow;
+  static HibiscusFixtures.Row pendingRow;
 
   @Autowired RunCoordinator coordinator;
   @LocalServerPort int port;
@@ -69,20 +74,26 @@ class BankboteWithHibiscusIT {
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) throws IOException, SQLException {
     hibiscus = HibiscusServer.start(Files.createDirectory(dir.resolve("secrets")));
-    HibiscusFixtures fixtures = new HibiscusFixtures(hibiscus);
+    fixtures = new HibiscusFixtures(hibiscus);
     LocalDate today = LocalDate.now(ZoneId.of("Europe/Berlin"));
-    String accountA = fixtures.account(A1, "EUR");
+    accountA = fixtures.account(A1, "EUR");
     String accountB = fixtures.account(B1, "EUR");
     String accountU = fixtures.account(UNMAPPED, "EUR");
-    booked =
-        fixtures.insert(
-            row(accountA, today.minusDays(1), -1234.56)
-                .purpose("Rechnung 2026-0042", "für Müller & Söhne", "Grüße €")
-                .name("Müller & Söhne GmbH", null)
-                .counterparty("DE87123456780000000002")
-                .type("Überweisung")
-                .references("E2E-42", "NONREF"));
-    pending = fixtures.insert(row(accountA, today, -5).purpose("vorgemerkt", null, null).flags(2));
+    bookedRow =
+        row(accountA, today.minusDays(1), -1234.56)
+            .valueDate(today.minusDays(2))
+            .purpose("Rechnung 2026-0042", "für Müller & Söhne", "Grüße €")
+            .name("Müller & Söhne GmbH", null)
+            .counterparty("DE87123456780000000002")
+            .type("Überweisung")
+            .references("E2E-42", "NONREF")
+            .bankId("TX-2026-0042");
+    cardRow = row(accountA, today, -4.5).purpose("Kartenzahlung", null, null);
+    pendingRow = row(accountA, today, -5).purpose("vorgemerkt", null, null).flags(2);
+    booked = fixtures.insert(bookedRow);
+    fixtures.insert(cardRow);
+    pending = fixtures.insert(pendingRow);
+    fixtures.insert(cardRow);
     bookedB = fixtures.insert(row(accountB, today, 12_345_678.9).purpose("Großbetrag", null, null));
     unmapped = fixtures.insert(row(accountU, today, 1).purpose("nirgendwohin", null, null));
 
@@ -152,11 +163,16 @@ class BankboteWithHibiscusIT {
     RunReport first = awaitRun(Optional.empty());
 
     assertThat(first.successful()).isTrue();
-    assertThat(ids(erpA)).containsExactly("hibiscus:" + booked);
-    assertThat(ids(erpB)).containsExactly("hibiscus:" + bookedB);
+    List<String> delivered = ids(erpA);
+    assertThat(delivered).hasSize(3);
+    assertThat(delivered.getFirst()).matches("b1-r-[0-9a-f]{32}-1");
+    String card = delivered.get(1).substring(0, delivered.get(1).length() - 2);
+    assertThat(delivered.subList(1, 3)).containsExactly(card + "-1", card + "-2");
+    assertThat(card).matches("b1-c-[0-9a-f]{32}");
+    assertThat(ids(erpB)).singleElement().asString().matches("b1-c-[0-9a-f]{32}-1");
     assertThat(first.unmapped()).extracting(u -> u.iban()).containsExactly("DE06…0005");
     AccountReport a = first.targets().getFirst().accounts().getFirst();
-    assertThat(a).isEqualTo(new AccountReport("DE17…0001", 2, 1, 0, 1, 0, null));
+    assertThat(a).isEqualTo(new AccountReport("DE17…0001", 4, 3, 0, 1, 0, 1, null));
     JsonNode doc = erpA.transactions().getFirst();
     assertThat(doc.get("withdrawal").decimalValue()).isEqualByComparingTo("1234.56");
     assertThat(doc.get("description").asString())
@@ -182,9 +198,23 @@ class BankboteWithHibiscusIT {
     RunReport second = awaitRun(before);
 
     assertThat(second.targets().getFirst().accounts().getFirst())
-        .isEqualTo(new AccountReport("DE17…0001", 2, 0, 1, 1, 0, null));
-    assertThat(ids(erpA)).hasSize(1);
+        .isEqualTo(new AccountReport("DE17…0001", 4, 0, 3, 1, 0, 1, null));
+    assertThat(ids(erpA)).isEqualTo(delivered);
     assertThat(ids(erpB)).hasSize(1);
+
+    fixtures.deleteTransactions(accountA);
+    fixtures.insert(cardRow);
+    fixtures.insert(cardRow);
+    fixtures.insert(pendingRow);
+    String rebooked = fixtures.insert(bookedRow);
+    before = coordinator.lastReport();
+    coordinator.requestRun();
+    RunReport rebuilt = awaitRun(before);
+
+    assertThat(rebooked).isNotEqualTo(booked);
+    assertThat(rebuilt.targets().getFirst().accounts().getFirst())
+        .isEqualTo(new AccountReport("DE17…0001", 4, 0, 3, 1, 0, 1, null));
+    assertThat(ids(erpA)).isEqualTo(delivered);
     assertThat(output.getAll())
         .doesNotContain(hibiscus.masterPassword(), A1, B1, UNMAPPED, "Müller", "Rechnung");
   }

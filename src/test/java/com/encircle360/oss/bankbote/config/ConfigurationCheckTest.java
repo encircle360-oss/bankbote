@@ -53,7 +53,6 @@ class ConfigurationCheckTest {
 
   private BankboteProperties properties(List<Target> targets, List<Account> accounts) {
     return new BankboteProperties(
-        "hibiscus",
         14,
         null,
         "Europe/Berlin",
@@ -152,15 +151,7 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus",
-                    14,
-                    null,
-                    "Europe/Berlin",
-                    "0 0 * * * *",
-                    Duration.ZERO,
-                    null,
-                    null,
-                    null)))
+                    14, null, "Europe/Berlin", "0 0 * * * *", Duration.ZERO, null, null, null)))
         .containsExactly(
             "bankbote.hibiscus is missing",
             "bankbote.targets is empty",
@@ -171,7 +162,6 @@ class ConfigurationCheckTest {
   void refusesBrokenGeneralSettings() {
     BankboteProperties properties =
         new BankboteProperties(
-            "Hibiscus!",
             0,
             LocalDate.of(2026, 11, 28),
             "Mars/Olympus",
@@ -183,7 +173,6 @@ class ConfigurationCheckTest {
 
     assertThat(problems(properties))
         .containsExactly(
-            "bankbote.source-key must be 1 to 32 lowercase letters, digits or dashes",
             "bankbote.lookback-days must be between 1 and 9999",
             "bankbote.backfill-from must not lie in the future",
             "bankbote.time-zone is not a time zone: Mars/Olympus",
@@ -195,7 +184,6 @@ class ConfigurationCheckTest {
   void acceptsAScheduleOfNone() {
     BankboteProperties properties =
         new BankboteProperties(
-            "hibiscus",
             9999,
             LocalDate.of(2026, 11, 27),
             "UTC",
@@ -224,7 +212,6 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus",
                     14,
                     null,
                     "Europe/Berlin",
@@ -244,7 +231,6 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus",
                     14,
                     null,
                     "Europe/Berlin",
@@ -325,7 +311,6 @@ class ConfigurationCheckTest {
   void refusesMissingGeneralSettings() {
     BankboteProperties properties =
         new BankboteProperties(
-            null,
             10000,
             null,
             null,
@@ -337,7 +322,6 @@ class ConfigurationCheckTest {
 
     assertThat(problems(properties))
         .containsExactly(
-            "bankbote.source-key must be 1 to 32 lowercase letters, digits or dashes",
             "bankbote.lookback-days must be between 1 and 9999",
             "bankbote.time-zone is not a time zone: null",
             "bankbote.schedule is neither a cron expression nor -",
@@ -387,7 +371,6 @@ class ConfigurationCheckTest {
     assertThat(
             problems(
                 new BankboteProperties(
-                    "hibiscus",
                     14,
                     null,
                     "Europe/Berlin",
@@ -415,7 +398,6 @@ class ConfigurationCheckTest {
       assertThat(
               problems(
                   new BankboteProperties(
-                      "hibiscus",
                       14,
                       null,
                       "Europe/Berlin",
@@ -481,5 +463,20 @@ class ConfigurationCheckTest {
                 + " management server; probes from outside use bankbote.probes.port",
             "management.server.address is not supported: the native image has no separate"
                 + " management server; probes from outside use bankbote.probes.port");
+  }
+
+  @Test
+  void namesTheSourceKeyAsObsoleteWithoutRefusingIt() {
+    assertThat(ConfigurationCheck.obsoleteKeys(new MockEnvironment())).isEmpty();
+    assertThat(
+            ConfigurationCheck.obsoleteKeys(
+                new MockEnvironment().withProperty("bankbote.source-key", "hibiscus")))
+        .containsExactly(
+            "bankbote.source-key has no effect since 0.2.0, as the transaction ids no longer"
+                + " depend on the source; it can be removed");
+    assertThat(
+            ConfigurationCheck.obsoleteKeys(
+                new MockEnvironment().withProperty("bankbote.sourceKey", "hibiscus")))
+        .hasSize(1);
   }
 }

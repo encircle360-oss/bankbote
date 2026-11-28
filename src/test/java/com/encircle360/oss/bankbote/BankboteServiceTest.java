@@ -92,6 +92,7 @@ class BankboteServiceTest {
     registry.add(
         "bankbote.hibiscus.password-file", () -> write("master-password", MASTER_PASSWORD));
     registry.add("bankbote.lookback-days", () -> "14");
+    registry.add("bankbote.source-key", () -> "hibiscus");
     registry.add("bankbote.schedule", () -> "-");
     registry.add("bankbote.notify-delay", () -> "100ms");
     List<FakeErpNext> erps = List.of(erpA, erpB, erpC);
@@ -150,6 +151,10 @@ class BankboteServiceTest {
     return erp.transactions().stream().map(doc -> doc.get("transaction_id").asString()).toList();
   }
 
+  private static List<String> purposes(FakeErpNext erp) {
+    return erp.transactions().stream().map(doc -> doc.get("description").asString()).toList();
+  }
+
   private HttpResponse<String> call(String method, String path) throws Exception {
     try (HttpClient client = HttpClient.newHttpClient()) {
       return client.send(
@@ -167,9 +172,13 @@ class BankboteServiceTest {
   void theRunAtStartDeliversEachAccountOnlyToTheErpNextOfItsCompany() throws Exception {
     RunReport report = awaitRun(Optional.empty());
 
-    assertThat(ids(erpA)).containsExactlyInAnyOrder("hibiscus:101", "hibiscus:102", "hibiscus:201");
-    assertThat(ids(erpB)).containsExactly("hibiscus:301");
-    assertThat(ids(erpC)).containsExactly("hibiscus:401");
+    assertThat(purposes(erpA))
+        .containsExactlyInAnyOrder("SVWZ+Invoice 101", "SVWZ+Invoice 102", "SVWZ+Invoice 201");
+    assertThat(purposes(erpB)).containsExactly("SVWZ+Invoice 301");
+    assertThat(purposes(erpC)).containsExactly("SVWZ+Invoice 401");
+    for (FakeErpNext erp : List.of(erpA, erpB, erpC)) {
+      assertThat(ids(erp)).allMatch(id -> id.matches("b1-c-[0-9a-f]{32}-1"));
+    }
     assertThat(report.unmapped()).extracting(u -> u.iban()).containsExactly("DE06…0005");
     for (FakeErpNext erp : List.of(erpA, erpB, erpC)) {
       String expected =
@@ -183,7 +192,7 @@ class BankboteServiceTest {
     }
     JsonNode large =
         erpA.transactions().stream()
-            .filter(doc -> doc.get("transaction_id").asString().equals("hibiscus:102"))
+            .filter(doc -> doc.get("description").asString().equals("SVWZ+Invoice 102"))
             .findFirst()
             .orElseThrow();
     assertThat(large.get("deposit").decimalValue()).isEqualByComparingTo("10000000.00");

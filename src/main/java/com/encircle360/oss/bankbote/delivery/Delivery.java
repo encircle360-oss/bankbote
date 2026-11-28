@@ -40,26 +40,19 @@ public final class Delivery {
 
   private static final Logger LOG = LoggerFactory.getLogger(Delivery.class);
 
-  /** Oldest first, and by id within a day, as the ids of Hibiscus grow with each new booking. */
+  /** Oldest first, and in the order of the source within a day. */
   private static final Comparator<SourceTransaction> BOOKING_ORDER =
       Comparator.comparing(SourceTransaction::bookingDate)
-          .thenComparing(transaction -> transaction.id().length())
-          .thenComparing(SourceTransaction::id);
+          .thenComparing(SourceTransaction::id, TransactionIds.SOURCE_ID_ORDER);
 
   private final TransactionSource source;
-  private final String sourceKey;
   private final List<Route> routes;
   private final List<ErpNextClient> targets;
   private final Clock clock;
 
   public Delivery(
-      TransactionSource source,
-      String sourceKey,
-      List<Route> routes,
-      List<ErpNextClient> targets,
-      Clock clock) {
+      TransactionSource source, List<Route> routes, List<ErpNextClient> targets, Clock clock) {
     this.source = source;
-    this.sourceKey = sourceKey;
     this.routes = List.copyOf(routes);
     this.targets = List.copyOf(targets);
     this.clock = clock;
@@ -191,12 +184,25 @@ public final class Delivery {
               .toList();
       tally.pending = entries.transactions().size() - booked.size();
       if (!booked.isEmpty()) {
-        deliver(account, booked, tally);
+        TransactionIds.Assignment ids = TransactionIds.assign(iban, booked);
+        tally.withBankId = ids.withBankId();
+        if (ids.sharedBankIds() > 0) {
+          LOG.warn(
+              "{} booked transaction(s) of account {} share a bank transaction id with a"
+                  + " transaction of other content; each is delivered under its running number",
+              ids.sharedBankIds(),
+              iban);
+        }
+        deliver(account, booked, ids.transactionIds(), tally);
       }
       return tally.report();
     }
 
-    private void deliver(SourceAccount account, List<SourceTransaction> booked, Tally tally) {
+    private void deliver(
+        SourceAccount account,
+        List<SourceTransaction> booked,
+        List<String> transactionIds,
+        Tally tally) {
       int done = 0;
       try {
         if (stopped != null) {
@@ -204,17 +210,18 @@ public final class Delivery {
         }
         String bankAccount = bankAccount(tally.iban);
         Map<String, List<ExistingTransaction>> existing =
-            target
-                .existing(
-                    bankAccount,
-                    booked.stream()
-                        .map(t -> BankTransactionMapper.transactionId(sourceKey, t.id()))
-                        .toList())
-                .stream()
+            target.existing(bankAccount, transactionIds).stream()
                 .collect(Collectors.groupingBy(ExistingTransaction::transactionId));
-        for (SourceTransaction transaction : booked) {
+        for (int i = 0; i < booked.size(); i++) {
+          SourceTransaction transaction = booked.get(i);
           try {
-            deliver(transaction, bankAccount, account.currency(), existing, tally);
+            deliver(
+                transaction,
+                transactionIds.get(i),
+                bankAccount,
+                account.currency(),
+                existing,
+                tally);
           } catch (ErpNextException e) {
             if (e.stopsTheTarget() || e.kind() == ErpNextException.Kind.UNAVAILABLE) {
               throw e;
@@ -242,12 +249,12 @@ public final class Delivery {
 
     private void deliver(
         SourceTransaction transaction,
+        String id,
         String bankAccount,
         String currency,
         Map<String, List<ExistingTransaction>> existing,
         Tally tally)
         throws ErpNextException {
-      String id = BankTransactionMapper.transactionId(sourceKey, transaction.id());
       List<ExistingTransaction> held = existing.getOrDefault(id, List.of());
       if (held.stream().anyMatch(doc -> doc.docstatus() != 0)) {
         if (held.size() > 1) {
@@ -261,8 +268,7 @@ public final class Delivery {
         throw draft("holds", id);
       }
       InsertedTransaction inserted =
-          target.insertSubmitted(
-              BankTransactionMapper.map(transaction, sourceKey, bankAccount, currency));
+          target.insertSubmitted(BankTransactionMapper.map(transaction, id, bankAccount, currency));
       if (inserted.docstatus() == 0) {
         throw draft("kept", id);
       }
@@ -329,6 +335,7 @@ public final class Delivery {
     private int existing;
     private int pending;
     private int failed;
+    private int withBankId;
     private String error;
 
     Tally(Iban iban) {
@@ -341,7 +348,8 @@ public final class Delivery {
     }
 
     AccountReport report() {
-      return new AccountReport(iban.masked(), found, delivered, existing, pending, failed, error);
+      return new AccountReport(
+          iban.masked(), found, delivered, existing, pending, failed, withBankId, error);
     }
   }
 }

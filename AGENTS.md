@@ -29,5 +29,5 @@ Der Einsatz von KI-Werkzeugen und Coding-Agenten ist in diesem Projekt ausdrück
 ## Wiederkehrende Aufgaben
 
 - **Ein Feld mehr übertragen:** Beleg in `docs/hibiscus.md`, Test in `HibiscusSourceTest` und `BankTransactionMapperTest`, Feld in `SourceTransaction`, `HibiscusSource`, `BankTransactionMapper`, `BankTransactionDocument` und `ErpNextClient.insertSubmitted`, Tabelle in `docs/architektur.md`.
-- **Eine neue Quelle:** `TransactionSource` umsetzen, mit stabiler ID je gebuchtem Umsatz, exakten Beträgen und dem Kennzeichen „vorgemerkt“; Tests nach dem Muster von `HibiscusSourceTest` gegen einen nachgebauten Server; eigene Seite unter `docs/` mit Belegen; Auswahl in `BankboteConfiguration`.
+- **Eine neue Quelle:** `TransactionSource` umsetzen, mit IDs in der Reihenfolge des Eingangs, vollständigen Tagen, Valuta, Transaktions-ID der Bank, exakten Beträgen und dem Kennzeichen „vorgemerkt“; die `transaction_id` berechnet `delivery/TransactionIds` unabhängig von der Quelle; Tests nach dem Muster von `HibiscusSourceTest` gegen einen nachgebauten Server; eigene Seite unter `docs/` mit Belegen; Auswahl in `BankboteConfiguration`.
 - **Eine neue Regel der Konfiguration:** Test in `ConfigurationCheckTest` mit der genauen Meldung, Regel in `ConfigurationCheck`, Zeile in `docs/konfiguration.md`.

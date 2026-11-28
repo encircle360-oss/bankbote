@@ -14,25 +14,24 @@ class BankTransactionMapperTest {
     return new SourceTransaction(
         "41",
         LocalDate.of(2026, 11, 25),
+        LocalDate.of(2026, 11, 26),
         new BigDecimal(amount),
         false,
         "Invoice 2026-0042",
         "Example Trading GmbH",
         counterpartyAccount,
         "SEPA transfer",
-        "E2E-1");
+        "E2E-1",
+        "TX-41");
   }
 
-  @Test
-  void buildsTheTransactionIdFromTheSourceKeyAndTheSourceId() {
-    assertThat(BankTransactionMapper.transactionId("hibiscus", "41")).isEqualTo("hibiscus:41");
-  }
+  private static final String ID = "b1-r-99684f9a4eb07a1404badb1bf21830fd-1";
 
   @Test
   void mapsAWithdrawal() {
     BankTransactionDocument document =
         BankTransactionMapper.map(
-            transaction("-1234.56", "de87 1234 5678 0000 0000 02"), "hibiscus", "Main - EX", "EUR");
+            transaction("-1234.56", "de87 1234 5678 0000 0000 02"), ID, "Main - EX", "EUR");
 
     assertThat(document)
         .isEqualTo(
@@ -42,7 +41,7 @@ class BankTransactionMapperTest {
                 "EUR",
                 "Invoice 2026-0042",
                 "E2E-1",
-                "hibiscus:41",
+                ID,
                 new BigDecimal("0.00"),
                 new BigDecimal("1234.56"),
                 "SEPA transfer",
@@ -54,7 +53,7 @@ class BankTransactionMapperTest {
   @Test
   void mapsADepositAndAnAccountNumberThatIsNoIban() {
     BankTransactionDocument document =
-        BankTransactionMapper.map(transaction("99.10", "1234567"), "hibiscus", "Main - EX", "EUR");
+        BankTransactionMapper.map(transaction("99.10", "1234567"), ID, "Main - EX", "EUR");
 
     assertThat(document.deposit()).isEqualTo(new BigDecimal("99.10"));
     assertThat(document.withdrawal()).isEqualTo(new BigDecimal("0.00"));
@@ -65,7 +64,7 @@ class BankTransactionMapperTest {
   @Test
   void mapsAZeroAmountToNeitherSide() {
     BankTransactionDocument document =
-        BankTransactionMapper.map(transaction("0.00", ""), "hibiscus", "Main - EX", "EUR");
+        BankTransactionMapper.map(transaction("0.00", ""), ID, "Main - EX", "EUR");
 
     assertThat(document.deposit()).isEqualTo(new BigDecimal("0.00"));
     assertThat(document.withdrawal()).isEqualTo(new BigDecimal("0.00"));
@@ -77,16 +76,18 @@ class BankTransactionMapperTest {
         new SourceTransaction(
             "1",
             LocalDate.of(2026, 11, 25),
+            null,
             BigDecimal.ONE,
             false,
             "p".repeat(500),
             "n".repeat(200),
             "a".repeat(200),
             "t".repeat(200),
-            "r".repeat(200));
+            "r".repeat(200),
+            "");
 
     BankTransactionDocument document =
-        BankTransactionMapper.map(transaction, "hibiscus", "Main - EX", "EUR");
+        BankTransactionMapper.map(transaction, ID, "Main - EX", "EUR");
 
     assertThat(document.description()).hasSize(500);
     assertThat(document.referenceNumber()).hasSize(200);

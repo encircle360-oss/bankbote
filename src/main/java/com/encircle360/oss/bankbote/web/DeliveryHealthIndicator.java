@@ -68,6 +68,7 @@ public class DeliveryHealthIndicator implements HealthIndicator {
     details.put("existing", account.existing());
     details.put("pending", account.pending());
     details.put("failed", account.failed());
+    details.put("withBankId", account.withBankId());
     details.put("error", account.error());
     return details;
   }
