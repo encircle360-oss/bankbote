@@ -4,6 +4,8 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ## Unveröffentlicht
 
+## [0.1.0] - 2026-11-28
+
 ### Hinzugefügt
 
 - Start-Banner: Bankbote meldet sich beim Start mit seinem Namen, der Adresse des Projekts und der encircle360 GmbH als Herausgeberin; der Smoke-Test prüft, dass der Banner auch im nativen Image steckt.
