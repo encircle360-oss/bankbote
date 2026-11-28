@@ -25,6 +25,10 @@ LABEL org.opencontainers.image.title="Bankbote" \
       org.opencontainers.image.revision="${REVISION}"
 
 COPY --from=build /src/build/native/nativeCompile/bankbote /bankbote
+# Spring Boot reads the optional ./config/application.yaml of the working directory, so the file
+# mounted at /config/application.yaml is found without an argument. The embedded Tomcat writes its
+# working files below /tmp, which a read-only root file system has to provide as a tmpfs.
+WORKDIR /
 # 65532 is the user nonroot of the distroless base.
 USER 65532:65532
 EXPOSE 8089
