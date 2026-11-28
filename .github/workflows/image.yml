@@ -114,7 +114,7 @@ jobs:
             type=docker,name=${{ env.LOCAL_TAG }}
             ${{ inputs.publish == true && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE) || '' }}
 
-      - name: Start the image with invented credentials and check health and start check
+      - name: Start the hardened image from a mounted configuration and check health, probe port and start check
         run: .github/scripts/smoke-test.sh "$LOCAL_TAG"
 
       - name: Keep the digest for the job publish

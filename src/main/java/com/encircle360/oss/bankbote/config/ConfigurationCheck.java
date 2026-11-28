@@ -8,6 +8,7 @@ import com.encircle360.oss.bankbote.secret.Secret;
 import com.encircle360.oss.bankbote.secret.SecretFileException;
 import com.encircle360.oss.bankbote.tls.TlsConfigurationException;
 import com.encircle360.oss.bankbote.tls.TlsContexts;
+import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -25,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.springframework.core.env.PropertyResolver;
 import org.springframework.scheduling.support.CronExpression;
 
 /**
@@ -58,6 +60,43 @@ public final class ConfigurationCheck {
     if (!problems.isEmpty()) {
       throw new InvalidConfigurationException(problems);
     }
+  }
+
+  /**
+   * Every problem of the probe port, empty when there is none. A management server of its own is
+   * refused: the native image fixes the management context when it is built, so such a server would
+   * either never listen or stop the start with a message that names no cause.
+   */
+  public static List<String> probeProblems(ProbeProperties probes, PropertyResolver environment) {
+    List<String> problems = new ArrayList<>();
+    for (String key : List.of("management.server.port", "management.server.address")) {
+      if (environment.containsProperty(key)) {
+        problems.add(
+            key
+                + " is not supported: the native image has no separate management server; probes"
+                + " from outside use bankbote.probes.port");
+      }
+    }
+    Integer port = probes.port();
+    if (port == null) {
+      if (probes.address() != null) {
+        problems.add("bankbote.probes.address needs bankbote.probes.port");
+      }
+      return problems;
+    }
+    if (port < 1 || port > 65535) {
+      problems.add("bankbote.probes.port must be between 1 and 65535");
+    } else if (port.equals(environment.getProperty("server.port", Integer.class))) {
+      problems.add("bankbote.probes.port must differ from server.port");
+    }
+    if (probes.address() != null) {
+      try {
+        InetAddress.ofLiteral(probes.address());
+      } catch (IllegalArgumentException e) {
+        problems.add("bankbote.probes.address is not an IP address: " + probes.address());
+      }
+    }
+    return problems;
   }
 
   private static void general(BankboteProperties properties, Clock clock, List<String> problems) {

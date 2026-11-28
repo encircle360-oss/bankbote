@@ -95,11 +95,12 @@ Zwei Ziele mit demselben Namen, zwei Ziele mit derselben Adresse, ein Konto mit 
 
    ```bash
    docker run --network container:hibiscus \
+     --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
      -v ./config:/config:ro -v ./secrets:/run/secrets:ro \
      ghcr.io/encircle360-oss/bankbote:<version>
    ```
 
-   Ein veröffentlichtes Image gibt es erst mit dem ersten Release. Bis dahin baut `docker build -f Containerfile -t bankbote .` das Image selbst.
+   Bankbote liest `/config/application.yaml` ohne weiteres Argument. Das Root-Dateisystem darf schreibgeschützt sein; nur `/tmp` muss beschreibbar sein. Für Kubernetes steht ein Beispiel als Container neben dem Hibiscus Server, mit Proben, unter [Betrieb](docs/betrieb.md#kubernetes-neben-dem-hibiscus-server).
 4. Im Hibiscus Server die Benachrichtigungs-URL auf `http://127.0.0.1:8089/notify` setzen.
 5. Den Lauf prüfen: `curl -s http://127.0.0.1:8089/actuator/health` im selben Namespace, oder das Log.
 
@@ -107,7 +108,7 @@ Alles Weitere: [Betrieb](docs/betrieb.md) und [Konfiguration](docs/konfiguration
 
 ## Konfiguration
 
-Bankbote wird über Spring-Konfiguration unter `bankbote.*` eingerichtet, aus einer `application.yaml` oder aus Umgebungsvariablen. Geheimnisse stehen nie in der Konfiguration selbst und nie auf der Kommandozeile, sondern in Dateien, deren Pfade die Konfiguration nennt. Beim Start prüft Bankbote die ganze Konfiguration und liest jede Datei; ist etwas falsch, startet es nicht und nennt jeden Fehler.
+Bankbote wird über Spring-Konfiguration unter `bankbote.*` eingerichtet, aus `/config/application.yaml`, aus Umgebungsvariablen oder Argumenten; eine Liste wie `bankbote.accounts` kommt dabei ganz aus einer Quelle. Geheimnisse stehen nie in der Konfiguration selbst und nie auf der Kommandozeile, sondern in Dateien, deren Pfade die Konfiguration nennt. Beim Start prüft Bankbote die ganze Konfiguration und liest jede Datei; ist etwas falsch, startet es nicht und nennt jeden Fehler.
 
 | Schlüssel | Vorgabe | Bedeutung |
 |---|---|---|
@@ -122,6 +123,7 @@ Bankbote wird über Spring-Konfiguration unter `bankbote.*` eingerichtet, aus ei
 | `bankbote.backfill-from` | – | erster Buchungstag des ersten Laufs nach dem Start, zum Nachholen |
 | `bankbote.schedule` | `0 0 * * * *` | Zeitplan als Cron-Ausdruck, `-` für keinen |
 | `bankbote.notify-delay` | `60s` | Wartezeit nach einer Benachrichtigung |
+| `bankbote.probes.port` | – | Probe-Port für Liveness und Readiness von außerhalb des Namespaces, etwa für das kubelet |
 
 Alle Schlüssel mit Prüfregeln, Zeitüberschreitungen und eigenen Zertifizierungsstellen: [Konfiguration](docs/konfiguration.md).
 
@@ -136,7 +138,7 @@ Bankbote wird testgetrieben entwickelt; die CI verlangt 100 % Abdeckung von Zeil
 - die Idempotenz: zweimal laufen, überlappende Zeiträume, Entwürfe, stornierte Umsätze;
 - der ganze Dienst als Spring-Anwendung gegen einen nachgebauten Hibiscus Server und drei nachgebaute ERPNext, mit Benachrichtigung, Health-Ausgabe und Log, das keine Geheimnisse, IBANs, Zwecke oder Namen enthält;
 - der Start mit falscher Zuordnung;
-- in der CI das native Image im Container, gestartet mit erfundenen Zugangsdaten.
+- in der CI das native Image im Container für `linux/amd64` und `linux/arm64`, gestartet mit erfundenen Zugangsdaten aus einer eingehängten `application.yaml` ohne Argumente, mit schreibgeschütztem Root-Dateisystem, ohne Capabilities und ohne neue Rechte; von außerhalb des Containers beantwortet der Probe-Port nur Liveness und Readiness, und der Port 8089 ist dort nicht erreichbar.
 
 Gegen einen **laufenden Hibiscus Server 2.12.4** mit MariaDB in Containern, mit erfundenen Konten und Umsätzen in seiner Datenbank, in jedem Pull Request:
 
