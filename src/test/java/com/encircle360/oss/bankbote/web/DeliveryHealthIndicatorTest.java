@@ -63,6 +63,7 @@ class DeliveryHealthIndicatorTest {
                             0,
                             0,
                             1,
+                            2,
                             "ERPNext company-b is unavailable (HTTP 503)")),
                     "ERPNext company-b is unavailable (HTTP 503)")),
             List.of());
@@ -72,6 +73,11 @@ class DeliveryHealthIndicatorTest {
     assertThat(health.getStatus()).isEqualTo(Status.DOWN);
     assertThat(health.getDetails().get("lastRun").toString())
         .contains(
-            "name=company-b", "iban=DE60…0003", "failed=1", "successful=false", "from=2026-11-13");
+            "name=company-b",
+            "iban=DE60…0003",
+            "failed=1",
+            "withBankId=2",
+            "successful=false",
+            "from=2026-11-13");
   }
 }

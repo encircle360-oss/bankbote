@@ -149,6 +149,18 @@ class BankboteChainIT {
     return admin.get("Bank Transaction", rows.get(0).path("name").asString());
   }
 
+  private static JsonNode byBankAccount(String bankAccount) {
+    JsonNode rows =
+        admin.callForm(
+            "frappe.client.get_list",
+            java.util.Map.of(
+                "doctype", "Bank Transaction",
+                "filters", "[[\"bank_account\",\"=\",\"" + bankAccount + "\"]]",
+                "fields", "[\"name\"]"));
+    assertThat(rows).as(bankAccount).hasSize(1);
+    return admin.get("Bank Transaction", rows.get(0).path("name").asString());
+  }
+
   @Test
   void deliversFromTheRealHibiscusServerIntoTheRealErpNextEachToItsCompanyOnce() throws Exception {
     RunReport first = awaitRun(Optional.empty());
@@ -156,9 +168,10 @@ class BankboteChainIT {
     assertThat(first.successful()).as(first.toString()).isTrue();
     assertThat(first.targets().getFirst().accounts())
         .containsExactly(
-            new AccountReport("DE17…0001", 2, 1, 0, 1, 0, null),
-            new AccountReport("DE60…0003", 1, 1, 0, 0, 0, null));
-    JsonNode a = byTransactionId("hibiscus:" + booked);
+            new AccountReport("DE17…0001", 2, 1, 0, 1, 0, 0, null),
+            new AccountReport("DE60…0003", 1, 1, 0, 0, 0, 0, null));
+    JsonNode a = byBankAccount(accountA);
+    assertThat(a.path("transaction_id").asString()).matches("b1-c-[0-9a-f]{32}-1");
     assertThat(a.path("docstatus").asInt()).isEqualTo(1);
     assertThat(a.path("company").asString()).isEqualTo("Beispiel GmbH");
     assertThat(a.path("bank_account").asString()).isEqualTo(accountA);
@@ -168,7 +181,8 @@ class BankboteChainIT {
     assertThat(a.path("bank_party_name").asString()).isEqualTo("Müller & Söhne GmbH");
     assertThat(a.path("bank_party_iban").asString()).isEqualTo("DE87123456780000000002");
     assertThat(a.path("reference_number").asString()).isEqualTo("E2E-42");
-    JsonNode b = byTransactionId("hibiscus:" + bookedB);
+    JsonNode b = byBankAccount(accountB);
+    String idB = b.path("transaction_id").asString();
     assertThat(b.path("company").asString()).isEqualTo("Zweite GmbH");
     assertThat(b.path("deposit").decimalValue()).isEqualByComparingTo("12345678.90");
 
@@ -178,9 +192,10 @@ class BankboteChainIT {
 
     assertThat(second.targets().getFirst().accounts())
         .containsExactly(
-            new AccountReport("DE17…0001", 2, 0, 1, 1, 0, null),
-            new AccountReport("DE60…0003", 1, 0, 1, 0, 0, null));
-    assertThat(byTransactionId("hibiscus:" + bookedB).path("bank_account").asString())
-        .isEqualTo(accountB);
+            new AccountReport("DE17…0001", 2, 0, 1, 1, 0, 0, null),
+            new AccountReport("DE60…0003", 1, 0, 1, 0, 0, 0, null));
+    assertThat(byTransactionId(idB).path("bank_account").asString()).isEqualTo(accountB);
+    assertThat(byBankAccount(accountA).path("name").asString())
+        .isEqualTo(a.path("name").asString());
   }
 }

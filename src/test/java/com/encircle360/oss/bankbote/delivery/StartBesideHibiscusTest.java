@@ -61,8 +61,7 @@ class StartBesideHibiscusTest {
             Duration.ofSeconds(2),
             Duration.ofSeconds(5));
     Delivery delivery =
-        new Delivery(
-            source, "hibiscus", List.of(new Route(Iban.parse(A1), "a")), List.of(client), CLOCK);
+        new Delivery(source, List.of(new Route(Iban.parse(A1), "a")), List.of(client), CLOCK);
     return new RunCoordinator(delivery::run, CLOCK, 14, null, Duration.ofMillis(200), reports::add);
   }
 

@@ -28,24 +28,48 @@ public final class FakeSource implements TransactionSource {
     return this;
   }
 
+  /** A booked transaction whose purpose {@code Invoice <id>} makes its content unique. */
   public FakeSource booked(String accountId, String id, String date, String amount) {
-    return add(
-        accountId,
-        new SourceTransaction(
-            id,
-            LocalDate.parse(date),
-            new BigDecimal(amount),
-            false,
-            "Invoice " + id,
-            "Example Customer " + id,
-            "DE87123456780000000002",
-            "SEPA transfer",
-            "E2E-" + id));
+    return booked(accountId, transaction(id, date, amount, "Invoice " + id, ""));
+  }
+
+  /** A booked transaction that carries an id of the bank. */
+  public FakeSource bookedWithBankId(
+      String accountId, String id, String date, String amount, String bankId) {
+    return booked(accountId, transaction(id, date, amount, "Invoice " + id, bankId));
+  }
+
+  public FakeSource booked(String accountId, SourceTransaction transaction) {
+    return add(accountId, transaction);
+  }
+
+  /** An invented booked transaction with the given content. */
+  public static SourceTransaction transaction(
+      String id, String date, String amount, String purpose, String bankId) {
+    return new SourceTransaction(
+        id,
+        LocalDate.parse(date),
+        LocalDate.parse(date),
+        new BigDecimal(amount),
+        false,
+        purpose,
+        "Example Customer",
+        "DE87123456780000000002",
+        "SEPA transfer",
+        "E2E-" + id,
+        bankId);
   }
 
   public FakeSource pending(String accountId, String id) {
     return add(
-        accountId, new SourceTransaction(id, null, BigDecimal.ZERO, true, "", "", "", "", ""));
+        accountId,
+        new SourceTransaction(id, null, null, BigDecimal.ZERO, true, "", "", "", "", "", ""));
+  }
+
+  /** Forgets the transactions of an account, as a source whose database is rebuilt. */
+  public FakeSource clear(String accountId) {
+    transactions.remove(accountId);
+    return this;
   }
 
   public FakeSource unreadable(String accountId, String id) {

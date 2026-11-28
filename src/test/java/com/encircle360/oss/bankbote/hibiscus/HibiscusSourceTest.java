@@ -8,6 +8,7 @@ import com.encircle360.oss.bankbote.source.SourceAccount;
 import com.encircle360.oss.bankbote.source.SourceEntries;
 import com.encircle360.oss.bankbote.source.SourceException;
 import com.encircle360.oss.bankbote.source.SourceTransaction;
+import com.encircle360.oss.bankbote.testing.FakeHibiscus;
 import com.encircle360.oss.bankbote.testing.FakeHttpServer;
 import com.encircle360.oss.bankbote.testing.FakeHttpServer.Response;
 import com.encircle360.oss.bankbote.testing.TestCertificate;
@@ -110,7 +111,7 @@ class HibiscusSourceTest {
   }
 
   @Test
-  void readsTheTransactionsOfTheWindowWithOneDayToSpare() throws SourceException {
+  void readsTheTransactionsOfTheWindowWithThreeDaysToSpare() throws SourceException {
     server.handler(request ->
         Response.json(
             200,
@@ -120,7 +121,8 @@ class HibiscusSourceTest {
                         + "\"zweck3\":\"line three\\nline four\","
                         + "\"empfaenger_name\":\"Example\",\"empfaenger_name2\":\"Trading GmbH\","
                         + "\"empfaenger_konto\":\"DE87123456780000000002\",\"art\":\"SEPA transfer\","
-                        + "\"endtoendid\":\"E2E-1\",\"customerref\":\"NONREF\",\"flags\":\"0\"")
+                        + "\"endtoendid\":\"E2E-1\",\"customerref\":\"NONREF\",\"flags\":\"0\","
+                        + "\"txid\":\" TX-2026-0041 \"")
                 + ","
                 + "{\"id\":\"40\",\"konto_id\":\"3\",\"datum\":\"2026-11-19\",\"betrag\":\"5.0\"}"
                 + "]"));
@@ -128,12 +130,13 @@ class HibiscusSourceTest {
     SourceEntries entries = source.transactions(ACCOUNT, LocalDate.of(2026, 11, 20));
 
     assertThat(server.requests().getFirst().uri().getPath())
-        .isEqualTo("/webadmin/rest/hibiscus/konto/3/umsaetze/days/8");
+        .isEqualTo("/webadmin/rest/hibiscus/konto/3/umsaetze/days/10");
     assertThat(entries.unreadable()).isEmpty();
     assertThat(entries.transactions())
         .containsExactly(
             new SourceTransaction(
                 "41",
+                LocalDate.of(2026, 11, 25),
                 LocalDate.of(2026, 11, 25),
                 new java.math.BigDecimal("-1234.56"),
                 false,
@@ -141,7 +144,95 @@ class HibiscusSourceTest {
                 "Example Trading GmbH",
                 "DE87123456780000000002",
                 "SEPA transfer",
-                "E2E-1"));
+                "E2E-1",
+                "TX-2026-0041"));
+  }
+
+  @Test
+  void readsTheValueDateAndTakesAMissingOneAsNone() throws SourceException {
+    server.handler(request ->
+        Response.json(
+            200,
+            "["
+                + transaction(",\"valuta\":\"2026-11-26\"")
+                + ","
+                + "{\"id\":\"42\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"betrag\":\"1.0\"},"
+                + "{\"id\":\"43\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"valuta\":\" \","
+                + "\"betrag\":\"1.0\"},"
+                + "{\"id\":\"44\",\"konto_id\":\"3\",\"datum\":\"2026-11-25\",\"valuta\":\"x\","
+                + "\"betrag\":\"1.0\"}"
+                + "]"));
+
+    SourceEntries entries = source.transactions(ACCOUNT, LocalDate.of(2026, 11, 20));
+
+    assertThat(entries.transactions())
+        .extracting(SourceTransaction::id, SourceTransaction::valueDate, SourceTransaction::bankId)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple("41", LocalDate.of(2026, 11, 26), ""),
+            org.assertj.core.groups.Tuple.tuple("42", null, ""),
+            org.assertj.core.groups.Tuple.tuple("43", null, ""));
+    assertThat(entries.unreadable())
+        .containsExactly(
+            new SourceEntries.Unreadable("44", "value date is neither yyyy-MM-dd nor dd.MM.yyyy"));
+  }
+
+  /**
+   * The bean cuts at the start of the day {@code n} times 24 hours before now on the clock of the
+   * server ({@code KontoImpl.getUmsaetze(int)}); whatever its time zone and whatever the hour, the
+   * first day of the window must be in the answer.
+   */
+  @Test
+  void theFirstDayOfTheWindowIsAlwaysCompleteWhateverTheTimeZoneOfTheServer() {
+    List<String> zones =
+        List.of(
+            "Europe/Berlin", "UTC", "America/Sao_Paulo", "Pacific/Kiritimati", "Pacific/Pago_Pago");
+    Instant start = Instant.parse("2026-10-20T00:00:00Z");
+    for (int hour = 0; hour < 24 * 14; hour++) {
+      Instant now = start.plus(Duration.ofHours(hour)).plus(Duration.ofMinutes(30));
+      for (String bankbote : zones) {
+        for (String server : zones) {
+          LocalDate today = now.atZone(ZoneId.of(bankbote)).toLocalDate();
+          for (int window = 0; window <= 3; window++) {
+            LocalDate from = today.minusDays(window);
+            long days = HibiscusSource.days(from, today);
+            LocalDate cut =
+                now.minus(Duration.ofHours(24 * days)).atZone(ZoneId.of(server)).toLocalDate();
+            assertThat(cut)
+                .as("%s %s %s %s", now, bankbote, server, window)
+                .isBeforeOrEqualTo(from);
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  void readsEveryTransactionOfTheFirstDayFromAServerThatIsTwoDaysAhead() throws Exception {
+    Instant now = Instant.parse("2026-11-27T10:30:00Z");
+    try (FakeHibiscus hibiscus = new FakeHibiscus(dir, "master-secret")) {
+      hibiscus
+          .serverClock(Clock.fixed(now, ZoneId.of("Pacific/Kiritimati")))
+          .booked("3", "60", "2026-11-19", "1.0")
+          .booked("3", "61", "2026-11-20", "1.0")
+          .booked("3", "62", "2026-11-20", "1.0")
+          .booked("3", "63", "2026-11-26", "1.0");
+      HibiscusSource behind =
+          new HibiscusSource(
+              new HibiscusClient(
+                  hibiscus.server().uri(),
+                  "admin",
+                  Secret.fromFile(dir.resolve("master-password")),
+                  TlsContexts.pinned(hibiscus.certificate()),
+                  Duration.ofSeconds(5),
+                  Duration.ofSeconds(5)),
+              Clock.fixed(now, ZoneId.of("Pacific/Pago_Pago")));
+
+      SourceEntries entries = behind.transactions(ACCOUNT, LocalDate.of(2026, 11, 20));
+
+      assertThat(entries.transactions())
+          .extracting(SourceTransaction::id)
+          .containsExactly("63", "62", "61");
+    }
   }
 
   @Test
@@ -243,7 +334,7 @@ class HibiscusSourceTest {
     assertThatThrownBy(() -> source.transactions(ACCOUNT, LocalDate.of(1990, 1, 1)))
         .isInstanceOf(SourceException.class)
         .hasMessage(
-            "Hibiscus Server gives at most 9999 days of transactions, the window needs 13480");
+            "Hibiscus Server gives at most 9999 days of transactions, the window needs 13482");
     assertThatThrownBy(() ->
             source.transactions(new SourceAccount("12345", "", "EUR"), LocalDate.of(2026, 11, 1)))
         .isInstanceOf(SourceException.class)
@@ -416,13 +507,15 @@ class HibiscusSourceTest {
             new SourceTransaction(
                     "41",
                     LocalDate.of(2026, 11, 25),
+                    LocalDate.of(2026, 11, 25),
                     java.math.BigDecimal.ONE,
                     false,
                     "Invoice",
                     "Example",
                     "",
                     "",
-                    "")
+                    "",
+                    "TX-1")
                 .toString())
         .isEqualTo("SourceTransaction[id=41]");
   }

@@ -14,21 +14,26 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.mock.env.MockEnvironment;
 
+@ExtendWith(OutputCaptureExtension.class)
 class BankboteConfigurationTest {
 
   @TempDir Path dir;
 
   @Test
-  void buildsTheCoordinatorWithTargetsOfSystemAndOwnAuthorities() throws Exception {
+  void buildsTheCoordinatorWithTargetsOfSystemAndOwnAuthorities(CapturedOutput output)
+      throws Exception {
     Path pem = TestCertificate.create(dir, "hibiscus").pem();
     Path authority = TestCertificate.create(dir, "authority").pem();
     Path file = Files.writeString(dir.resolve("secret"), "x");
     Duration ten = Duration.ofSeconds(10);
     BankboteProperties properties =
         new BankboteProperties(
-            "hibiscus",
             14,
             null,
             "Europe/Berlin",
@@ -56,18 +61,27 @@ class BankboteConfigurationTest {
                     ten)),
             List.of(new Account("DE17123456780000000001", "company-a")));
 
-    try (RunCoordinator coordinator = new BankboteConfiguration().runCoordinator(properties)) {
+    try (RunCoordinator coordinator =
+        new BankboteConfiguration().runCoordinator(properties, new MockEnvironment())) {
       assertThat(coordinator.running()).isFalse();
     }
+    assertThat(output.getAll()).doesNotContain("source-key");
+
+    MockEnvironment earlier = new MockEnvironment().withProperty("bankbote.source-key", "hibiscus");
+    try (RunCoordinator coordinator =
+        new BankboteConfiguration().runCoordinator(properties, earlier)) {
+      assertThat(coordinator.running()).isFalse();
+    }
+    assertThat(output.getAll()).contains("WARN", "bankbote.source-key has no effect since 0.2.0");
   }
 
   @Test
   void refusesAnInvalidConfiguration() {
     BankboteProperties properties =
-        new BankboteProperties(
-            "hibiscus", 14, null, "Europe/Berlin", "-", Duration.ZERO, null, null, null);
+        new BankboteProperties(14, null, "Europe/Berlin", "-", Duration.ZERO, null, null, null);
 
-    assertThatThrownBy(() -> new BankboteConfiguration().runCoordinator(properties))
+    assertThatThrownBy(
+            () -> new BankboteConfiguration().runCoordinator(properties, new MockEnvironment()))
         .isInstanceOf(InvalidConfigurationException.class);
   }
 }

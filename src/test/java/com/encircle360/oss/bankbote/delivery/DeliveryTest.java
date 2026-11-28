@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.encircle360.oss.bankbote.account.Iban;
 import com.encircle360.oss.bankbote.erpnext.ErpNextClient;
 import com.encircle360.oss.bankbote.secret.Secret;
+import com.encircle360.oss.bankbote.source.SourceTransaction;
 import com.encircle360.oss.bankbote.testing.FakeErpNext;
 import com.encircle360.oss.bankbote.testing.FakeHttpServer;
 import com.encircle360.oss.bankbote.testing.FakeHttpServer.Response;
@@ -24,9 +25,13 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import tools.jackson.databind.node.ObjectNode;
 
+@ExtendWith(OutputCaptureExtension.class)
 class DeliveryTest {
 
   static final String A1 = "DE17123456780000000001";
@@ -75,7 +80,7 @@ class DeliveryTest {
   }
 
   private Delivery delivery(List<Route> routes, ErpNextClient... clients) {
-    return new Delivery(source, "hibiscus", routes, List.of(clients), CLOCK);
+    return new Delivery(source, routes, List.of(clients), CLOCK);
   }
 
   private static Route route(String iban, String target) {
@@ -84,6 +89,21 @@ class DeliveryTest {
 
   private static List<String> ids(FakeErpNext erp) {
     return erp.transactions().stream().map(doc -> doc.get("transaction_id").asString()).toList();
+  }
+
+  /** The source ids of the documents a target holds, read from the purpose {@code Invoice <id>}. */
+  private static List<String> sources(FakeErpNext erp) {
+    return erp.transactions().stream()
+        .map(doc -> doc.get("description").asString().replace("Invoice ", ""))
+        .toList();
+  }
+
+  /** The identifier of a transaction of {@link FakeSource#booked}, the first with its content. */
+  private static String id(String iban, String sourceId, String date, String amount) {
+    return TransactionIds.transactionId(
+        Iban.parse(iban),
+        FakeSource.transaction(sourceId, date, amount, "Invoice " + sourceId, ""),
+        1);
   }
 
   private static AccountReport account(RunReport report, String target, String iban) {
@@ -114,8 +134,8 @@ class DeliveryTest {
                 client("b", b))
             .run(FROM);
 
-    assertThat(ids(a)).containsExactlyInAnyOrder("hibiscus:11", "hibiscus:21");
-    assertThat(ids(b)).containsExactly("hibiscus:31");
+    assertThat(sources(a)).containsExactlyInAnyOrder("11", "21");
+    assertThat(sources(b)).containsExactly("31");
     assertThat(a.transactions())
         .extracting(doc -> doc.get("bank_account").asString())
         .containsExactlyInAnyOrder("Main - A", "Savings - A");
@@ -123,7 +143,7 @@ class DeliveryTest {
     assertThat(report.successful()).isTrue();
     assertThat(report.targets()).extracting(TargetReport::name).containsExactly("a", "b");
     assertThat(account(report, "a", A1))
-        .isEqualTo(new AccountReport("DE17…0001", 1, 1, 0, 0, 0, null));
+        .isEqualTo(new AccountReport("DE17…0001", 1, 1, 0, 0, 0, 0, null));
     assertThat(account(report, "b", B1).delivered()).isEqualTo(1);
   }
 
@@ -148,9 +168,9 @@ class DeliveryTest {
             client("c", c))
         .run(FROM);
 
-    assertThat(ids(a)).containsExactly("hibiscus:11");
-    assertThat(ids(b)).containsExactly("hibiscus:31");
-    assertThat(ids(c)).containsExactlyInAnyOrder("hibiscus:41", "hibiscus:42");
+    assertThat(sources(a)).containsExactly("11");
+    assertThat(sources(b)).containsExactly("31");
+    assertThat(sources(c)).containsExactlyInAnyOrder("41", "42");
     for (String name : List.of("a", "b", "c")) {
       FakeErpNext erp = name.equals("a") ? a : name.equals("b") ? b : c;
       assertThat(erp.requests())
@@ -197,9 +217,9 @@ class DeliveryTest {
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-    assertThat(ids(a)).containsExactly("hibiscus:11");
+    assertThat(sources(a)).containsExactly("11");
     assertThat(account(report, "a", A1))
-        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 0, 1, 0, null));
+        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 0, 1, 0, 0, null));
   }
 
   @Test
@@ -209,11 +229,11 @@ class DeliveryTest {
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-    assertThat(ids(a)).containsExactly("hibiscus:11");
+    assertThat(sources(a)).containsExactly("11");
     assertThat(account(report, "a", A1))
         .isEqualTo(
             new AccountReport(
-                "DE17…0001", 2, 1, 0, 0, 1, "1 transaction(s) cannot be read at the source"));
+                "DE17…0001", 2, 1, 0, 0, 1, 0, "1 transaction(s) cannot be read at the source"));
     assertThat(report.successful()).isFalse();
   }
 
@@ -230,11 +250,11 @@ class DeliveryTest {
     RunReport second = delivery.run(FROM);
     RunReport third = delivery.run(FROM);
 
-    assertThat(ids(a)).containsExactlyInAnyOrder("hibiscus:11", "hibiscus:12");
+    assertThat(sources(a)).containsExactlyInAnyOrder("11", "12");
     assertThat(account(report(second), "a", A1))
-        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 1, 0, 0, null));
+        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 1, 0, 0, 0, null));
     assertThat(account(third, "a", A1))
-        .isEqualTo(new AccountReport("DE17…0001", 2, 0, 2, 0, 0, null));
+        .isEqualTo(new AccountReport("DE17…0001", 2, 0, 2, 0, 0, 0, null));
   }
 
   private static RunReport report(RunReport report) {
@@ -244,7 +264,9 @@ class DeliveryTest {
   @Test
   void reportsADraftThatHoldsTheTransactionIdAndNeitherSubmitsNorDuplicatesIt() {
     FakeErpNext a =
-        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 0);
+        erp("a")
+            .bankAccount("Main - A", A1, true)
+            .existing(id(A1, "11", "2026-11-20", "1.00"), "Main - A", 0);
     source
         .account("1", A1)
         .booked("1", "11", "2026-11-20", "1.00")
@@ -252,7 +274,9 @@ class DeliveryTest {
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-    assertThat(ids(a)).containsExactlyInAnyOrder("hibiscus:11", "hibiscus:12");
+    assertThat(ids(a))
+        .containsExactlyInAnyOrder(
+            id(A1, "11", "2026-11-20", "1.00"), id(A1, "12", "2026-11-21", "2.00"));
     assertThat(a.transactions().getFirst().get("docstatus").asInt()).isZero();
     assertThat(a.requests()).noneMatch(request -> request.method().equals("PUT"));
     assertThat(account(report, "a", A1))
@@ -264,7 +288,10 @@ class DeliveryTest {
                 0,
                 0,
                 1,
-                "ERPNext a holds hibiscus:11 as a draft; submit or delete it there"));
+                0,
+                "ERPNext a holds "
+                    + id(A1, "11", "2026-11-20", "1.00")
+                    + " as a draft; submit or delete it there"));
     assertThat(report.targets().getFirst().error()).isNull();
   }
 
@@ -279,13 +306,18 @@ class DeliveryTest {
     assertThat(a.requests()).noneMatch(request -> request.method().equals("PUT"));
     assertThat(account(report, "a", A1).failed()).isEqualTo(1);
     assertThat(account(report, "a", A1).error())
-        .isEqualTo("ERPNext a kept hibiscus:11 as a draft; submit or delete it there");
+        .isEqualTo(
+            "ERPNext a kept "
+                + id(A1, "11", "2026-11-20", "1.00")
+                + " as a draft; submit or delete it there");
   }
 
   @Test
   void leavesACancelledTransactionAloneAndCountsItAsExisting() {
     FakeErpNext a =
-        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 2);
+        erp("a")
+            .bankAccount("Main - A", A1, true)
+            .existing(id(A1, "11", "2026-11-20", "1.00"), "Main - A", 2);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
@@ -319,6 +351,7 @@ class DeliveryTest {
                 0,
                 0,
                 1,
+                0,
                 "ERPNext a has no company bank account with this IBAN"));
     assertThat(account(report, "a", A2))
         .isEqualTo(
@@ -329,6 +362,7 @@ class DeliveryTest {
                 0,
                 0,
                 1,
+                0,
                 "ERPNext a has 2 company bank accounts with this IBAN"));
   }
 
@@ -350,20 +384,20 @@ class DeliveryTest {
     RunReport report =
         new Delivery(
                 source,
-                "hibiscus",
                 List.of(route(A1, "a"), route(B1, "b"), route(C1, "c-wrong")),
                 List.of(client("a", a), client("b", b), wrongKeyForC),
                 CLOCK)
             .run(FROM);
 
-    assertThat(ids(a)).containsExactly("hibiscus:11");
+    assertThat(sources(a)).containsExactly("11");
     assertThat(b.transactions()).isEmpty();
     assertThat(c.transactions()).isEmpty();
     assertThat(report.successful()).isFalse();
     assertThat(account(report, "a", A1).delivered()).isEqualTo(1);
     assertThat(account(report, "b", B1))
         .isEqualTo(
-            new AccountReport("DE60…0003", 1, 0, 0, 0, 1, "ERPNext b is unavailable (HTTP 503)"));
+            new AccountReport(
+                "DE60…0003", 1, 0, 0, 0, 1, 0, "ERPNext b is unavailable (HTTP 503)"));
     assertThat(report.targets())
         .filteredOn(t -> t.name().equals("c-wrong"))
         .singleElement()
@@ -408,7 +442,7 @@ class DeliveryTest {
                 client("slow", slow, Duration.ofMillis(500)))
             .run(FROM);
 
-    assertThat(ids(a)).containsExactly("hibiscus:11");
+    assertThat(sources(a)).containsExactly("11");
     assertThat(deliveredAt)
         .singleElement()
         .satisfies(nanos -> assertThat(nanos).isLessThan(2_000_000_000L));
@@ -421,10 +455,10 @@ class DeliveryTest {
     FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
     try (FakeHttpServer elsewhere = FakeHttpServer.http()) {
       a.override(request -> {
-        if (request.method().equals("POST") && request.body().contains("hibiscus:11")) {
+        if (request.method().equals("POST") && request.body().contains("Invoice 11")) {
           return Response.json(417, "{\"exc_type\":\"ValidationError\"}");
         }
-        if (request.method().equals("POST") && request.body().contains("hibiscus:13")) {
+        if (request.method().equals("POST") && request.body().contains("Invoice 13")) {
           return new Response(
               302, "text/plain", "", Map.of("Location", elsewhere.uri() + "/steal"));
         }
@@ -439,7 +473,7 @@ class DeliveryTest {
 
       RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
 
-      assertThat(ids(a)).containsExactly("hibiscus:12");
+      assertThat(sources(a)).containsExactly("12");
       assertThat(elsewhere.requests()).isEmpty();
       AccountReport account = account(report, "a", A1);
       assertThat(account.delivered()).isEqualTo(1);
@@ -471,7 +505,7 @@ class DeliveryTest {
     assertThat(account(report, "a", A1).failed()).isEqualTo(2);
     assertThat(account(report, "a", A2))
         .isEqualTo(
-            new AccountReport("DE87…0002", 1, 0, 0, 0, 1, report.targets().getFirst().error()));
+            new AccountReport("DE87…0002", 1, 0, 0, 0, 1, 0, report.targets().getFirst().error()));
   }
 
   @Test
@@ -496,7 +530,7 @@ class DeliveryTest {
         .isEqualTo("the source has 2 accounts with this IBAN");
     assertThat(account(report, "a", B1))
         .isEqualTo(
-            new AccountReport("DE60…0003", 0, 0, 0, 0, 0, "Hibiscus Server answered HTTP 500"));
+            new AccountReport("DE60…0003", 0, 0, 0, 0, 0, 0, "Hibiscus Server answered HTTP 500"));
     assertThat(a.requests()).isEmpty();
   }
 
@@ -523,7 +557,7 @@ class DeliveryTest {
 
     assertThat(a.requests()).isEmpty();
     assertThat(account(report, "a", A1))
-        .isEqualTo(new AccountReport("DE17…0001", 1, 0, 0, 1, 0, null));
+        .isEqualTo(new AccountReport("DE17…0001", 1, 0, 0, 1, 0, 0, null));
     assertThat(report.from()).isEqualTo(FROM);
     assertThat(report.startedAt()).isEqualTo(CLOCK.instant());
     assertThat(report.finishedAt()).isEqualTo(CLOCK.instant());
@@ -534,8 +568,8 @@ class DeliveryTest {
     FakeErpNext a =
         erp("a")
             .bankAccount("Main - A", A1, true)
-            .existing("hibiscus:11", "Main - A", 1)
-            .existing("hibiscus:11", "Main - A", 0);
+            .existing(id(A1, "11", "2026-11-20", "1.00"), "Main - A", 1)
+            .existing(id(A1, "11", "2026-11-20", "1.00"), "Main - A", 0);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
     RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
@@ -553,7 +587,9 @@ class DeliveryTest {
         request.method().equals("POST")
             ? Response.json(
                 200,
-                "{\"data\":{\"name\":\"X\",\"transaction_id\":\"hibiscus:11\",\"docstatus\":2}}")
+                "{\"data\":{\"name\":\"X\",\"transaction_id\":\""
+                    + id(A1, "11", "2026-11-20", "1.00")
+                    + "\",\"docstatus\":2}}")
             : null);
     source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
 
@@ -593,8 +629,7 @@ class DeliveryTest {
           }
         };
     Delivery delivery =
-        new Delivery(
-            broken, "hibiscus", List.of(route(A1, "a")), List.of(client("a", erp("a"))), CLOCK);
+        new Delivery(broken, List.of(route(A1, "a")), List.of(client("a", erp("a"))), CLOCK);
 
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> delivery.run(FROM))
         .isInstanceOf(IllegalStateException.class)
@@ -640,5 +675,132 @@ class DeliveryTest {
       Thread.interrupted();
       interrupter.join();
     }
+  }
+
+  @Test
+  void deliversUnderTheIdentifierDerivedFromTheTransactionAndTheAccount() {
+    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
+    source
+        .account("1", A1)
+        .booked("1", "11", "2026-11-20", "-10.00")
+        .bookedWithBankId("1", "12", "2026-11-20", "-10.00", "TX-0012");
+
+    RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
+
+    assertThat(ids(a))
+        .containsExactly(
+            id(A1, "11", "2026-11-20", "-10.00"),
+            TransactionIds.transactionId(
+                Iban.parse(A1),
+                FakeSource.transaction("12", "2026-11-20", "-10.00", "Invoice 12", "TX-0012"),
+                1));
+    assertThat(ids(a).getFirst()).startsWith("b1-c-");
+    assertThat(ids(a).getLast()).startsWith("b1-r-");
+    assertThat(account(report, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 2, 2, 0, 0, 0, 1, null));
+  }
+
+  @Test
+  void identicalTransactionsOfOneDayAreEachDeliveredOnceAndASecondRunDeliversNothing() {
+    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
+    SourceTransaction card = FakeSource.transaction("21", "2026-11-20", "-4.50", "Card", "");
+    source
+        .account("1", A1)
+        .booked("1", card)
+        .pending("1", "22")
+        .booked("1", FakeSource.transaction("23", "2026-11-20", "-4.50", "Card", ""));
+    Delivery delivery = delivery(List.of(route(A1, "a")), client("a", a));
+
+    RunReport first = delivery.run(FROM);
+    RunReport second = delivery.run(FROM);
+
+    String key = TransactionIds.key(Iban.parse(A1), card);
+    assertThat(ids(a)).containsExactly(key + "-1", key + "-2");
+    assertThat(account(first, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 3, 2, 0, 1, 0, 0, null));
+    assertThat(account(second, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 3, 0, 2, 1, 0, 0, null));
+  }
+
+  @Test
+  void aLaterArrivalOfTheSameContentGetsTheNextNumberAndIsDelivered() {
+    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
+    SourceTransaction card = FakeSource.transaction("21", "2026-11-20", "-4.50", "Card", "");
+    source.account("1", A1).booked("1", card);
+    Delivery delivery = delivery(List.of(route(A1, "a")), client("a", a));
+    delivery.run(FROM);
+
+    source.booked("1", FakeSource.transaction("140", "2026-11-20", "-4.50", "Card", ""));
+    RunReport later = delivery.run(FROM);
+
+    String key = TransactionIds.key(Iban.parse(A1), card);
+    assertThat(ids(a)).containsExactly(key + "-1", key + "-2");
+    assertThat(account(later, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 2, 1, 1, 0, 0, 0, null));
+  }
+
+  @Test
+  void aRebuiltSourceWithOtherIdsInAnotherOrderDeliversNothingAgain() {
+    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
+    source
+        .account("1", A1)
+        .booked("1", FakeSource.transaction("101", "2026-11-20", "-4.50", "Card", ""))
+        .booked("1", FakeSource.transaction("102", "2026-11-20", "-4.50", "Card", ""))
+        .booked("1", "103", "2026-11-21", "20.00")
+        .bookedWithBankId("1", "104", "2026-11-22", "30.00", "TX-104");
+    Delivery delivery = delivery(List.of(route(A1, "a")), client("a", a));
+    delivery.run(FROM);
+    List<String> delivered = ids(a);
+
+    source
+        .clear("1")
+        .booked("1", FakeSource.transaction("9", "2026-11-22", "30.00", "Invoice 104", "TX-104"))
+        .booked("1", FakeSource.transaction("2", "2026-11-20", "-4.50", "Card", ""))
+        .booked("1", FakeSource.transaction("7", "2026-11-21", "20.00", "Invoice 103", ""))
+        .booked("1", FakeSource.transaction("10", "2026-11-20", "-4.50", "Card", ""));
+    RunReport again = delivery.run(FROM);
+
+    assertThat(ids(a)).isEqualTo(delivered).hasSize(4);
+    assertThat(account(again, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 4, 0, 4, 0, 0, 1, null));
+  }
+
+  @Test
+  void deliversTransactionsThatShareABankIdWithOtherContentAndWarnsOnceWithoutContent(
+      CapturedOutput output) {
+    FakeErpNext a = erp("a").bankAccount("Main - A", A1, true);
+    source
+        .account("1", A1)
+        .bookedWithBankId("1", "11", "2026-11-20", "-10.00", "TX-1")
+        .bookedWithBankId("1", "12", "2026-11-20", "-10.00", "TX-1")
+        .bookedWithBankId("1", "13", "2026-11-21", "-10.00", "TX-2");
+
+    RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
+
+    assertThat(sources(a)).containsExactly("11", "12", "13");
+    assertThat(ids(a)).doesNotHaveDuplicates();
+    assertThat(account(report, "a", A1))
+        .isEqualTo(new AccountReport("DE17…0001", 3, 3, 0, 0, 0, 3, null));
+    assertThat(output.getAll().lines().filter(line -> line.contains("share a bank transaction")))
+        .singleElement()
+        .satisfies(line -> {
+          assertThat(line)
+              .contains(
+                  "2 booked transaction(s) of account DE17…0001 share a bank transaction id with a"
+                      + " transaction of other content");
+          assertThat(line).doesNotContain(A1, "TX-1", "Invoice");
+        });
+  }
+
+  @Test
+  void identifiersOfTheEarlierSchemeAreNotRecognised() {
+    FakeErpNext a =
+        erp("a").bankAccount("Main - A", A1, true).existing("hibiscus:11", "Main - A", 1);
+    source.account("1", A1).booked("1", "11", "2026-11-20", "1.00");
+
+    RunReport report = delivery(List.of(route(A1, "a")), client("a", a)).run(FROM);
+
+    assertThat(ids(a)).containsExactly("hibiscus:11", id(A1, "11", "2026-11-20", "1.00"));
+    assertThat(account(report, "a", A1).delivered()).isEqualTo(1);
   }
 }

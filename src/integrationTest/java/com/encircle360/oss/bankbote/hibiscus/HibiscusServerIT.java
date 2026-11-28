@@ -252,6 +252,30 @@ class HibiscusServerIT {
   }
 
   @Test
+  void givesTheValueDateAndTheIdOfTheBankAndLeavesAnEmptyIdOut() throws Exception {
+    String account = fixtures.account(A1, "EUR");
+    String withId =
+        fixtures.insert(
+            row(account, today().minusDays(1), -4.5)
+                .valueDate(today().minusDays(2))
+                .bankId(" TX-2026-0001 "));
+    String withoutId = fixtures.insert(row(account, today(), 1));
+
+    Map<String, JsonNode> raw = rawById(account, 3);
+    Map<String, SourceTransaction> read =
+        source().transactions(account(account), today().minusDays(3)).transactions().stream()
+            .collect(Collectors.toMap(SourceTransaction::id, Function.identity()));
+
+    assertThat(raw.get(withId).get("valuta").asString()).isEqualTo(today().minusDays(2).toString());
+    assertThat(raw.get(withId).get("txid").asString()).isEqualTo(" TX-2026-0001 ");
+    assertThat(raw.get(withoutId).has("txid")).isFalse();
+    assertThat(read.get(withId).valueDate()).isEqualTo(today().minusDays(2));
+    assertThat(read.get(withId).bankId()).isEqualTo("TX-2026-0001");
+    assertThat(read.get(withoutId).valueDate()).isEqualTo(today());
+    assertThat(read.get(withoutId).bankId()).isEmpty();
+  }
+
+  @Test
   void answersWithApplicationJsonWithoutCharsetInUtf8() throws Exception {
     String account = fixtures.account(A1, "EUR");
     fixtures.insert(row(account, today(), 1).name("Müller €", null));
