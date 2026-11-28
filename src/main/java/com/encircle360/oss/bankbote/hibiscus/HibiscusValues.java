@@ -90,6 +90,21 @@ final class HibiscusValues {
   }
 
   /**
+   * The value date, or null when the column is empty. The schema of Hibiscus requires one; a booked
+   * transaction without it is still delivered, and its identifier takes the booking date instead.
+   */
+  static LocalDate optionalValueDate(String text) {
+    if (text == null || text.isBlank()) {
+      return null;
+    }
+    try {
+      return date(text);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("value date is neither yyyy-MM-dd nor dd.MM.yyyy");
+    }
+  }
+
+  /**
    * Whether a transaction is pending. Hibiscus stores the flags as a number and leaves them out of
    * the JSON when the column is empty; a value that is no number is refused, so a transaction whose
    * state is unclear is never taken for booked.

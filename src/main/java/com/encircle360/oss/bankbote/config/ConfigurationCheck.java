@@ -26,6 +26,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.core.env.Environment;
 import org.springframework.core.env.PropertyResolver;
 import org.springframework.scheduling.support.CronExpression;
 
@@ -35,7 +37,6 @@ import org.springframework.scheduling.support.CronExpression;
  */
 public final class ConfigurationCheck {
 
-  private static final Pattern SOURCE_KEY = Pattern.compile("[a-z0-9][a-z0-9-]{0,31}");
   private static final Pattern TARGET_NAME = Pattern.compile("[a-z0-9][a-z0-9-]{0,62}");
 
   private ConfigurationCheck() {}
@@ -60,6 +61,20 @@ public final class ConfigurationCheck {
     if (!problems.isEmpty()) {
       throw new InvalidConfigurationException(problems);
     }
+  }
+
+  /**
+   * Keys that are still accepted but have no effect, each with a note for the log. They never stop
+   * the start, so a configuration of an earlier version keeps working.
+   */
+  public static List<String> obsoleteKeys(Environment environment) {
+    List<String> notes = new ArrayList<>();
+    if (Binder.get(environment).bind("bankbote.source-key", String.class).isBound()) {
+      notes.add(
+          "bankbote.source-key has no effect since 0.2.0, as the transaction ids no longer depend"
+              + " on the source; it can be removed");
+    }
+    return notes;
   }
 
   /**
@@ -100,9 +115,6 @@ public final class ConfigurationCheck {
   }
 
   private static void general(BankboteProperties properties, Clock clock, List<String> problems) {
-    if (properties.sourceKey() == null || !SOURCE_KEY.matcher(properties.sourceKey()).matches()) {
-      problems.add("bankbote.source-key must be 1 to 32 lowercase letters, digits or dashes");
-    }
     if (properties.lookbackDays() < 1 || properties.lookbackDays() > 9999) {
       problems.add("bankbote.lookback-days must be between 1 and 9999");
     }

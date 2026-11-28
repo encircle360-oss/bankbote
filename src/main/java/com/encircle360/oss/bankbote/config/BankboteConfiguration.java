@@ -15,8 +15,11 @@ import com.encircle360.oss.bankbote.tls.TlsContexts;
 import java.time.Clock;
 import java.time.ZoneId;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /** Builds Bankbote from its checked configuration. */
@@ -24,9 +27,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class BankboteConfiguration {
 
+  private static final Logger LOG = LoggerFactory.getLogger(BankboteConfiguration.class);
+
   @Bean
-  RunCoordinator runCoordinator(BankboteProperties properties) {
+  RunCoordinator runCoordinator(BankboteProperties properties, Environment environment) {
     ConfigurationCheck.requireValid(properties, Clock.systemUTC());
+    ConfigurationCheck.obsoleteKeys(environment).forEach(LOG::warn);
     Clock clock = Clock.system(ZoneId.of(properties.timeZone()));
     Hibiscus hibiscus = properties.hibiscus();
     HibiscusSource source =
@@ -45,7 +51,7 @@ public class BankboteConfiguration {
         properties.accounts().stream()
             .map(account -> new Route(Iban.parse(account.iban()), account.target()))
             .toList();
-    Delivery delivery = new Delivery(source, properties.sourceKey(), routes, targets, clock);
+    Delivery delivery = new Delivery(source, routes, targets, clock);
     return new RunCoordinator(
         delivery::run,
         clock,

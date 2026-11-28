@@ -18,15 +18,11 @@ final class BankTransactionMapper {
   private BankTransactionMapper() {}
 
   /**
-   * The {@code transaction_id} of the Bank Transaction: the configured key of the source and the id
-   * of the transaction there. It stays the same for every run, which makes delivery idempotent.
+   * The Bank Transaction under the {@code transaction_id} of {@link TransactionIds}, the same for
+   * every run, which makes delivery idempotent.
    */
-  static String transactionId(String sourceKey, String sourceId) {
-    return sourceKey + ":" + sourceId;
-  }
-
   static BankTransactionDocument map(
-      SourceTransaction transaction, String sourceKey, String bankAccount, String currency) {
+      SourceTransaction transaction, String transactionId, String bankAccount, String currency) {
     BigDecimal amount = transaction.amount();
     BigDecimal zero = BigDecimal.ZERO.setScale(amount.scale());
     Optional<Iban> partyIban = Iban.tryParse(transaction.counterpartyAccount());
@@ -36,7 +32,7 @@ final class BankTransactionMapper {
         currency,
         transaction.purpose(),
         transaction.reference(),
-        transactionId(sourceKey, transaction.id()),
+        transactionId,
         amount.signum() > 0 ? amount : zero,
         amount.signum() < 0 ? amount.negate() : zero,
         cut(transaction.type(), TYPE_LENGTH),

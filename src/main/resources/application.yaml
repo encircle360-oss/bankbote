@@ -41,7 +41,6 @@ management:
       enabled: false
 
 bankbote:
-  source-key: hibiscus
   lookback-days: 14
   time-zone: Europe/Berlin
   schedule: "0 0 * * * *"

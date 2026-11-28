@@ -32,6 +32,15 @@ public final class HibiscusSource implements TransactionSource {
   /** {@code ([0-9]{1,4})} for the days in the path of {@code UmsatzBean}. */
   static final int MAX_DAYS = 9999;
 
+  /**
+   * Days asked for beyond the window. The bean cuts at the start of the day {@code n} times 24
+   * hours before now, in the time zone of the server ({@code KontoImpl.getUmsaetze(int)}): the day
+   * of the server may be up to two days ahead of the day of Bankbote, and a change from summer time
+   * moves the cut one day later during the last hour of a day. With this margin the first day of
+   * the window is always complete, which the running numbers of the identifiers need.
+   */
+  static final int MARGIN_DAYS = 3;
+
   private final HibiscusClient client;
   private final Clock clock;
 
@@ -50,9 +59,10 @@ public final class HibiscusSource implements TransactionSource {
   }
 
   /**
-   * The bean gives the transactions booked since the start of the day {@code n} days ago, as the
-   * clock of the server sees it; one more day than the window needs covers a server in another time
-   * zone, and the transactions before the window are dropped here.
+   * The bean gives the transactions booked since the start of a day about {@code n} days ago, as
+   * the clock of the server sees it; {@link #MARGIN_DAYS} more than the window needs make sure
+   * every transaction of its first day is there, and the transactions before the window are dropped
+   * here.
    */
   @Override
   public SourceEntries transactions(SourceAccount account, LocalDate from) throws SourceException {
@@ -66,7 +76,7 @@ public final class HibiscusSource implements TransactionSource {
       throw new SourceException(
           "account " + account.id() + " has no valid currency: " + e.getMessage());
     }
-    long days = Math.max(1, ChronoUnit.DAYS.between(from, LocalDate.now(clock)) + 1);
+    long days = days(from, LocalDate.now(clock));
     if (days > MAX_DAYS) {
       throw new SourceException(
           "Hibiscus Server gives at most "
@@ -103,24 +113,31 @@ public final class HibiscusSource implements TransactionSource {
     return new SourceEntries(transactions, unreadable);
   }
 
+  /** The {@code n} of the bean for a window from {@code from}, with {@link #MARGIN_DAYS}. */
+  static long days(LocalDate from, LocalDate today) {
+    return Math.max(1, ChronoUnit.DAYS.between(from, today) + MARGIN_DAYS);
+  }
+
   /**
    * A pending transaction is never delivered, so it carries nothing but its id: whatever else it
    * holds may change until the bank books it, under a new id.
    */
   private static SourceTransaction transaction(String id, JsonNode node, String currency) {
     if (HibiscusValues.pending(text(node, "flags"))) {
-      return new SourceTransaction(id, null, BigDecimal.ZERO, true, "", "", "", "", "");
+      return new SourceTransaction(id, null, null, BigDecimal.ZERO, true, "", "", "", "", "", "");
     }
     return new SourceTransaction(
         id,
         HibiscusValues.date(text(node, "datum")),
+        HibiscusValues.optionalValueDate(text(node, "valuta")),
         HibiscusValues.amount(text(node, "betrag"), currency),
         false,
         HibiscusValues.joinLines(text(node, "zweck"), text(node, "zweck2"), text(node, "zweck3")),
         HibiscusValues.joinWords(text(node, "empfaenger_name"), text(node, "empfaenger_name2")),
         text(node, "empfaenger_konto").strip(),
         text(node, "art").strip(),
-        HibiscusValues.reference(text(node, "endtoendid"), text(node, "customerref")));
+        HibiscusValues.reference(text(node, "endtoendid"), text(node, "customerref")),
+        text(node, "txid").strip());
   }
 
   private static String text(JsonNode node, String field) {

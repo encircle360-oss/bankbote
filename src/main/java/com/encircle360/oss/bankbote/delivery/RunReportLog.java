@@ -22,7 +22,8 @@ public final class RunReportLog {
       }
       for (AccountReport account : target.accounts()) {
         String line =
-            "target {} account {}: found {}, delivered {}, existing {}, pending {}, failed {}{}";
+            "target {} account {}: found {}, delivered {}, existing {}, pending {}, failed {},"
+                + " with bank id {}{}";
         Object[] values = {
           target.name(),
           account.iban(),
@@ -31,6 +32,7 @@ public final class RunReportLog {
           account.existing(),
           account.pending(),
           account.failed(),
+          account.withBankId(),
           account.error() == null ? "" : " (" + account.error() + ")"
         };
         if (account.failed() > 0 || account.error() != null) {
