@@ -19,6 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.mock.env.MockEnvironment;
 
 class ConfigurationCheckTest {
 
@@ -428,5 +429,57 @@ class ConfigurationCheckTest {
               "bankbote.hibiscus.username must not be empty: Hibiscus Server refuses an empty user"
                   + " name");
     }
+  }
+
+  @Test
+  void acceptsNoProbePortAndAProbePortWithOrWithoutAnAddress() {
+    MockEnvironment environment = new MockEnvironment().withProperty("server.port", "8089");
+
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(null, null), environment))
+        .isEmpty();
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(8090, null), environment))
+        .isEmpty();
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(8090, "0.0.0.0"), environment))
+        .isEmpty();
+    assertThat(
+            ConfigurationCheck.probeProblems(new ProbeProperties(1, "::"), new MockEnvironment()))
+        .isEmpty();
+    assertThat(
+            ConfigurationCheck.probeProblems(
+                new ProbeProperties(65535, "10.0.0.7"), new MockEnvironment()))
+        .isEmpty();
+  }
+
+  @Test
+  void refusesABrokenProbePort() {
+    MockEnvironment environment = new MockEnvironment().withProperty("server.port", "8089");
+
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(0, null), environment))
+        .containsExactly("bankbote.probes.port must be between 1 and 65535");
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(65536, null), environment))
+        .containsExactly("bankbote.probes.port must be between 1 and 65535");
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(8089, null), environment))
+        .containsExactly("bankbote.probes.port must differ from server.port");
+    assertThat(
+            ConfigurationCheck.probeProblems(
+                new ProbeProperties(8090, "probes.example.com"), environment))
+        .containsExactly("bankbote.probes.address is not an IP address: probes.example.com");
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(null, "0.0.0.0"), environment))
+        .containsExactly("bankbote.probes.address needs bankbote.probes.port");
+  }
+
+  @Test
+  void refusesAManagementServerWhichTheNativeImageCannotStart() {
+    MockEnvironment environment =
+        new MockEnvironment()
+            .withProperty("management.server.port", "8090")
+            .withProperty("management.server.address", "0.0.0.0");
+
+    assertThat(ConfigurationCheck.probeProblems(new ProbeProperties(null, null), environment))
+        .containsExactly(
+            "management.server.port is not supported: the native image has no separate"
+                + " management server; probes from outside use bankbote.probes.port",
+            "management.server.address is not supported: the native image has no separate"
+                + " management server; probes from outside use bankbote.probes.port");
   }
 }
