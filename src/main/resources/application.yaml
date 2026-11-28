@@ -21,6 +21,18 @@ management:
       show-details: always
       probes:
         enabled: true
+      # The probe port of bankbote.probes.* serves these two groups and nothing else. They show
+      # only their status; a group without an include would take every component, the last run
+      # among them, and a failed run would then restart the pod.
+      group:
+        liveness:
+          include: livenessState
+          show-components: never
+          show-details: never
+        readiness:
+          include: readinessState
+          show-components: never
+          show-details: never
   health:
     diskspace:
       enabled: false
