@@ -4,9 +4,22 @@
 
 ## Das Image
 
-`ghcr.io/encircle360-oss/bankbote:<version>` enthält nur das native Image `/bankbote` auf einer Basis ohne Shell, die nichts außer glibc, CA-Zertifikaten und Zeitzonen hat. Es läuft als Benutzer `nonroot` (UID 65532), für `linux/amd64` und `linux/arm64`. Ein Release bringt dazu je Plattform eine SBOM (SPDX) und eine Provenienz-Attestierung, prüfbar mit `gh attestation verify oci://ghcr.io/encircle360-oss/bankbote:<version> --owner encircle360-oss`. Bis zum ersten Release baut `docker build -f Containerfile -t bankbote .` das Image selbst; das native Image braucht beim Bauen mehrere GB Arbeitsspeicher.
+`ghcr.io/encircle360-oss/bankbote:<version>` enthält nur das native Image `/bankbote` auf einer Basis ohne Shell, die nichts außer glibc, CA-Zertifikaten und Zeitzonen hat. Es läuft als Benutzer `nonroot` (UID 65532), für `linux/amd64` und `linux/arm64`. Ein Release bringt dazu je Plattform eine SBOM (SPDX) und eine Provenienz-Attestierung, prüfbar mit `gh attestation verify oci://ghcr.io/encircle360-oss/bankbote:<version> --owner encircle360-oss`. Selbst bauen lässt sich das Image mit `docker build -f Containerfile -t bankbote .`; das native Image braucht beim Bauen mehrere GB Arbeitsspeicher.
 
 Das native Image startet in Sekundenbruchteilen und braucht wenig Speicher; eine JVM gibt es im Image nicht.
+
+Das Arbeitsverzeichnis des Images ist `/`. Spring liest deshalb `/config/application.yaml` ohne weiteres Argument, siehe [Konfiguration](konfiguration.md).
+
+**Gehärtet betreiben.** Bankbote braucht keine Capabilities, keine neuen Rechte und kein beschreibbares Root-Dateisystem, wohl aber ein **beschreibbares `/tmp`**: Der eingebettete Tomcat legt dort beim Start sein Arbeitsverzeichnis an und startet ohne es nicht (`Unable to create tempDir. java.io.tmpdir is set to /tmp`). Ein kleines tmpfs genügt; Bankbote schreibt sonst nichts:
+
+```bash
+docker run --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+  --network container:hibiscus \
+  -v ./config:/config:ro -v ./secrets:/run/secrets:ro \
+  ghcr.io/encircle360-oss/bankbote:<version>
+```
+
+So startet der Rauchtest der CI das Image auf beiden Plattformen. In Kubernetes ist das ein `emptyDir` auf `/tmp`, siehe [Kubernetes](#kubernetes-neben-dem-hibiscus-server).
 
 ## Netzwerk-Namespace
 
@@ -15,14 +28,37 @@ Bankbote lauscht auf `127.0.0.1:8089` und ist dafür gedacht, im **Netzwerk-Name
 - **Kubernetes:** Bankbote als zweiter Container im Pod des Hibiscus Servers. Beide teilen den Namespace; `https://127.0.0.1:8080` ist der Hibiscus Server, `http://127.0.0.1:8089` ist Bankbote.
 - **docker:** `docker run --network container:<hibiscus>` oder in compose `network_mode: "service:hibiscus"`.
 
+In compose, gehärtet:
+
+```yaml
+services:
+  hibiscus:
+    image: ghcr.io/encircle360-oss/hibiscus-server:<version>
+    # Datenbank, Volumes und Master-Passwort wie in der Dokumentation dieses Images
+  bankbote:
+    image: ghcr.io/encircle360-oss/bankbote:<version>
+    network_mode: "service:hibiscus"
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./config:/config:ro
+      - ./secrets:/run/secrets:ro
+```
+
+Eine Health-Prüfung von docker oder compose (`HEALTHCHECK`, `healthcheck:`) geht nicht: Sie läuft als Befehl im Container, und das Image hat weder Shell noch `curl`.
+
 Ausgehend braucht Bankbote HTTPS zu jeder ERPNext-Site, sonst nichts. Eine Netzwerkrichtlinie kann den ausgehenden Verkehr auf genau diese Adressen beschränken.
 
 ## Dateien
 
 | Pfad im Container | Inhalt |
 |---|---|
-| `/config/application.yaml` | die Konfiguration, siehe [Konfiguration](konfiguration.md) |
+| `/config/application.yaml` | die Konfiguration, siehe [Konfiguration](konfiguration.md); optional, wenn alles aus Umgebungsvariablen oder Argumenten kommt |
 | frei wählbar, etwa `/run/secrets/…` | Master-Passwort, Zertifikat des Hibiscus Servers, je Ziel API-Schlüssel und -Geheimnis, je eine Datei |
+| `/tmp` | beschreibbar, etwa als tmpfs: Arbeitsverzeichnis des eingebetteten Tomcat |
 
 Die Dateien muss der Benutzer 65532 lesen können; nur lesend einhängen. In Kubernetes passen Secrets als Volume; das Master-Passwort sollte ein eigenes Secret sein, das nur dieser Pod einhängt.
 
@@ -133,18 +169,25 @@ Nur der erste Lauf nach dem Start geht bis dorthin zurück, danach gilt wieder `
 }
 ```
 
-`delivery` ist `DOWN`, wenn der letzte Lauf einen Fehler hatte, sonst `UP`; der Gesamtstatus folgt ihm. Für Proben gibt es `/actuator/health/liveness` und `/actuator/health/readiness`, die nicht vom letzten Lauf abhängen.
+`delivery` ist `DOWN`, wenn der letzte Lauf einen Fehler hatte, sonst `UP`; der Gesamtstatus folgt ihm. Dieser Endpunkt mit allen Einzelheiten ist nur auf `127.0.0.1:8089` erreichbar, also aus dem Namespace, in Kubernetes etwa mit `kubectl port-forward`.
 
-Das Image hat keine Shell, also auch kein `curl` für eine Probe im Container. In Kubernetes eine `httpGet`-Probe auf einen eigenen Port für das Management stellen, der nicht nur auf Loopback lauscht:
+### Proben
 
-```yaml
-management:
-  server:
-    port: 8090
-    address: 0.0.0.0
-```
+`/actuator/health/liveness` und `/actuator/health/readiness` hängen nicht vom letzten Lauf ab und zeigen nur ihren Status, `{"status":"UP"}` mit HTTP 200, sonst `DOWN` mit HTTP 503. Auf `127.0.0.1:8089` antworten sie immer.
 
-`/notify` und `/run` bleiben dabei auf dem Port 8089 und antworten ohnehin nur Aufrufen von der Loopback-Adresse. Wer den Health-Endpunkt außerhalb des Namespaces anbietet, zeigt dort die Namen der Ziele und maskierte IBANs; sonst nichts.
+Für Proben von außerhalb des Namespaces, etwa eine `httpGet`-Probe des kubelet, hat das Image einen **Probe-Port**, als Vorgabe aus. `bankbote.probes.port` (Umgebungsvariable `BANKBOTE_PROBES_PORT`) schaltet ihn ein; er lauscht auf allen Adressen des Namespaces oder auf `bankbote.probes.address`:
+
+| Adresse | Pfad | Antwort |
+|---|---|---|
+| `127.0.0.1:8089` | `/notify`, `/run` (POST) | löst einen Lauf aus, siehe [Sicherheit](sicherheit.md#die-endpunkte) |
+| `127.0.0.1:8089` | `/actuator/health` | der letzte Lauf mit Namen der Ziele, maskierten IBANs, Zählern und Fehlermeldungen |
+| `127.0.0.1:8089` | `/actuator/health/liveness`, `/actuator/health/readiness` | nur der Status |
+| Probe-Port, alle Adressen | `GET`/`HEAD` `/actuator/health/liveness`, `/actuator/health/readiness` | nur der Status |
+| Probe-Port, alle Adressen | alles andere, auch `/run`, `/notify` und `/actuator/health` | HTTP 404 ohne Inhalt |
+
+Der Probe-Port ist ein zweiter Listener desselben Servers. Er vergleicht Methode und Pfad genau, so wie sie ankommen; eine andere Schreibweise, ein Schrägstrich am Ende oder ein Parameter im Pfad bekommt 404. Der Port 8089 bleibt auf Loopback; `/notify` und `/run` sind von außerhalb des Namespaces nicht erreichbar, auch nicht über den Probe-Port. Der Rauchtest der CI prüft das auf beiden Plattformen von außerhalb des Containers.
+
+**Kein eigener Management-Server.** Spring Boots `management.server.port` und `management.server.address` lehnt Bankbote beim Start ab. Das native Image legt beim Bauen fest, ob der Actuator einen eigenen Server hat; gebaut ist es ohne. Bis 0.1.0 wurde `management.server.port` darum stillschweigend übergangen, und zusammen mit `management.server.address` brach der Start mit `Management-specific server address cannot be configured as the management server is not listening on a separate port` ab. Ein eigener Management-Server hätte außerdem den ganzen Health-Endpunkt mit dem letzten Lauf nach außen gegeben und ihn von Port 8089 genommen; der Probe-Port gibt nur die beiden Proben frei.
 
 Das Log hat je Lauf eine Zeile je Konto und Ziel, eine je Konto ohne Zuordnung und eine Schlusszeile:
 
@@ -155,6 +198,127 @@ run from 2026-11-13 succeeded in 2104 ms
 ```
 
 Fehler stehen als `WARN` mit Grund, etwa `ERPNext unternehmen-b is unavailable (HTTP 503)`. Das Log enthält nie Geheimnisse, volle IBANs, Beträge, Verwendungszwecke oder Namen.
+
+## Kubernetes: neben dem Hibiscus Server
+
+Bankbote läuft als zweiter Container im Pod des Hibiscus Servers. Die Konfiguration kommt aus einer ConfigMap, die Geheimnisse als Dateien aus Secrets, die Liste der Konten aus Umgebungsvariablen. Ein Beispiel mit erfundenen Namen und zwei Zielen:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bankbote-config
+data:
+  application.yaml: |
+    bankbote:
+      hibiscus:
+        url: https://127.0.0.1:8080
+        certificate: /run/secrets/hibiscus/certificate.pem
+        password-file: /run/secrets/hibiscus/master-password
+      targets:
+        - name: unternehmen-a
+          url: https://erp.unternehmen-a.example.com
+          api-key-file: /run/secrets/unternehmen-a/api-key
+          api-secret-file: /run/secrets/unternehmen-a/api-secret
+        - name: unternehmen-b
+          url: https://erp.unternehmen-b.example.com
+          api-key-file: /run/secrets/unternehmen-b/api-key
+          api-secret-file: /run/secrets/unternehmen-b/api-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hibiscus
+spec:
+  replicas: 1                # eine Bankbote-Instanz je Hibiscus Server
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hibiscus
+  template:
+    metadata:
+      labels:
+        app: hibiscus
+    spec:
+      containers:
+        - name: hibiscus-server
+          image: ghcr.io/encircle360-oss/hibiscus-server:<version>
+          # Datenbank, Volumes und Master-Passwort wie in der Dokumentation dieses Images
+        - name: bankbote
+          image: ghcr.io/encircle360-oss/bankbote:<version>
+          env:
+            - name: BANKBOTE_PROBES_PORT
+              value: "8090"
+            # Die ganze Liste der Konten aus Umgebungsvariablen: IBAN und Ziel eines Kontos
+            # müssen aus derselben Quelle kommen.
+            - name: BANKBOTE_ACCOUNTS_0_IBAN
+              value: DE17123456780000000001
+            - name: BANKBOTE_ACCOUNTS_0_TARGET
+              value: unternehmen-a
+            - name: BANKBOTE_ACCOUNTS_1_IBAN
+              value: DE60123456780000000003
+            - name: BANKBOTE_ACCOUNTS_1_TARGET
+              value: unternehmen-b
+          ports:
+            - name: probes
+              containerPort: 8090
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: probes
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: probes
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: hibiscus
+              mountPath: /run/secrets/hibiscus
+              readOnly: true
+            - name: unternehmen-a
+              mountPath: /run/secrets/unternehmen-a
+              readOnly: true
+            - name: unternehmen-b
+              mountPath: /run/secrets/unternehmen-b
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: bankbote-config
+        - name: hibiscus           # Dateien master-password und certificate.pem
+          secret:
+            secretName: bankbote-hibiscus
+        - name: unternehmen-a      # Dateien api-key und api-secret
+          secret:
+            secretName: bankbote-unternehmen-a
+        - name: unternehmen-b
+          secret:
+            secretName: bankbote-unternehmen-b
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+```
+
+- **Konfigurationsdatei:** Die ConfigMap landet als `/config/application.yaml`, die Bankbote ohne Argument liest. Ein `workingDir` am Container darf nicht gesetzt sein, sonst sucht Spring `./config/` dort.
+- **Geheimnisse als Dateien:** Secrets als Volume, nur lesend; die Dateien sind als Vorgabe für alle lesbar (Modus 0644), also auch für den Benutzer 65532. Das Secret mit dem Master-Passwort hängt nur dieser Pod ein.
+- **Listen aus einer Quelle:** Spring bindet eine Liste wie `bankbote.accounts` oder `bankbote.targets` ganz aus einer Quelle, der mit dem höchsten Rang, und mischt sie nicht. Stehen die Konten in den Umgebungsvariablen, gehören sie nicht zusätzlich in die Datei; IBAN und Ziel eines Kontos getrennt auf Datei und Umgebung zu verteilen, ergibt ein Konto ohne IBAN oder ohne Ziel, und Bankbote startet nicht.
+- **`/tmp`:** das `emptyDir` ist das beschreibbare Verzeichnis, das Tomcat beim Start braucht.
+- **Proben:** nur über den Probe-Port, siehe [Proben](#proben). Den letzten Lauf zeigt `kubectl port-forward deploy/hibiscus 8089:8089` und dann `curl -s http://127.0.0.1:8089/actuator/health`; der Port-Forward kommt im Pod über Loopback an. Einen Lauf auslösen geht auf demselben Weg mit `curl -X POST http://127.0.0.1:8089/run`.
+- **Netzwerk:** Der Pod braucht ausgehend nur HTTPS zu den ERPNext-Sites; eingehend für Bankbote nur den Probe-Port vom kubelet.
 
 ## Updates
 

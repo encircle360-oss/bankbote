@@ -30,7 +30,7 @@ Bankbote prüft das Zertifikat jeder Site mit den Zertifizierungsstellen des Sys
 
 - Master-Passwort, API-Schlüssel und -Geheimnisse kommen aus Dateien, nie aus der Konfiguration selbst, aus Umgebungsvariablen oder von der Kommandozeile.
 - Ein Geheimnis zeigt in `toString()` nur `Secret[****]`; Fehlermeldungen nennen den Pfad der Datei, nie ihren Inhalt.
-- Der Actuator gibt nur `health` frei; `env` und `configprops` sind nicht erreichbar.
+- Der Actuator gibt nur `health` frei; `env` und `configprops` sind nicht erreichbar. Einen eigenen Management-Server lehnt Bankbote beim Start ab.
 
 ## Persönliche Daten
 
@@ -47,7 +47,8 @@ Ein Test des ganzen Dienstes prüft, dass Log und Health-Ausgabe weder Geheimnis
 `POST /notify` (für den Hibiscus Server) und `POST /run` lösen einen Lauf aus. Der Hibiscus Server kann bei seiner Benachrichtigung keine Anmeldung mitschicken. Die Endpunkte sind deshalb so gebaut, dass eine Anmeldung nichts schützen müsste:
 
 - **Annahme:** Bankbote läuft im Netzwerk-Namespace des Hibiscus Servers, und in diesem Namespace laufen nur Prozesse, denen man das Master-Passwort ohnehin anvertraut.
-- Bankbote lauscht als Vorgabe nur auf `127.0.0.1`. Auch wenn der Server breiter lauscht, etwa für Proben, antworten `/notify` und `/run` nur Aufrufen von einer Loopback-Adresse und sonst mit 403.
+- Bankbote lauscht als Vorgabe nur auf `127.0.0.1`. Auch wenn der Server breiter lauscht, antworten `/notify` und `/run` nur Aufrufen von einer Loopback-Adresse und sonst mit 403.
+- Für Proben von außerhalb gibt es einen eigenen Probe-Port, als Vorgabe aus. Er beantwortet nur `GET` und `HEAD` von `/actuator/health/liveness` und `/actuator/health/readiness` mit dem Status allein und alles andere, auch `/notify`, `/run` und den Health-Endpunkt mit dem letzten Lauf, mit 404 ([Proben](betrieb.md#proben)).
 - Die Endpunkte nehmen keine Eingaben an. Den Rumpf der Benachrichtigung, das Konto als JSON, liest Bankbote nicht; ein Aufruf kann weder ein Konto, ein Ziel noch einen Zeitraum wählen.
 - Das Schlimmste, was ein Aufruf bewirken kann, ist ein Lauf, der nichts doppelt liefert. Läufe kommen nie gleichzeitig, und alle Aufrufe während eines Laufs oder einer Wartezeit ergeben zusammen höchstens einen weiteren.
 

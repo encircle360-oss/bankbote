@@ -15,7 +15,7 @@ Bankbote ist ein kleiner Spring-Boot-Dienst in Java 25, gebaut als natives Image
 | `erpnext` | `ErpNextClient`: ein Client je Ziel für die REST-API mit dem Schlüssel dieses Ziels, ohne Weiterleitungen; `BankTransactionDocument` und die Antworten |
 | `delivery` | `Delivery` führt einen Lauf aus, `BankTransactionMapper` bildet die Felder, `RunCoordinator` sorgt für einen Lauf zur Zeit, `ScheduledRuns` für Start und Zeitplan, `RunReportLog` und die Berichte für die Zusammenfassung |
 | `config` | `BankboteProperties`, `ConfigurationCheck` mit allen Regeln, `BankboteConfiguration` baut daraus den Dienst, `InvalidConfigurationFailureAnalyzer` zeigt die Fehler beim Start |
-| `web` | `TriggerController` mit `POST /notify` und `POST /run`, `DeliveryHealthIndicator` für den Health-Endpunkt |
+| `web` | `TriggerController` mit `POST /notify` und `POST /run`, `DeliveryHealthIndicator` für den Health-Endpunkt, `ProbePort` für den optionalen Probe-Port, der nur Liveness und Readiness beantwortet |
 
 Eine weitere Quelle implementiert `TransactionSource` und hält deren Regeln: Konten mit IBAN und Währung, Umsätze mit stabiler ID, exakten Beträgen und dem Kennzeichen „vorgemerkt“, und was sich nicht sicher lesen lässt, als `Unreadable`. Der Rest von Bankbote bleibt, wie er ist.
 

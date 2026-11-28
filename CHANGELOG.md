@@ -4,6 +4,15 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ## Unveröffentlicht
 
+## [0.1.1] - 2026-11-28
+
+### Behoben
+
+- **Die Konfigurationsdatei wurde nicht gelesen.** Das Image von 0.1.0 lief im Arbeitsverzeichnis `/home/nonroot`; ein eingehängtes `/config/application.yaml` übersah Spring deshalb, und die Prüfung der Konfiguration meldete `bankbote.hibiscus is missing`, obwohl die Dokumentation das Laden ohne Argument zusagte. Das Image läuft jetzt im Arbeitsverzeichnis `/` und liest die Datei ohne `--spring.config.additional-location`. Die Datei bleibt optional; Umgebungsvariablen und Argumente überschreiben sie wie zuvor.
+- **Ein eigener Port für Proben ließ sich nicht einrichten.** [Betrieb](docs/betrieb.md) empfahl `management.server.port` und `management.server.address` für `httpGet`-Proben. Das native Image legt beim Bauen fest, ob der Actuator einen eigenen Server hat, und 0.1.0 ist ohne gebaut: `management.server.port` allein wurde stillschweigend übergangen, zusammen mit `management.server.address` brach der Start mit `Management-specific server address cannot be configured as the management server is not listening on a separate port` ab. Neu ist der Probe-Port `bankbote.probes.port`, als Vorgabe aus, der nur `GET` und `HEAD` von `/actuator/health/liveness` und `/actuator/health/readiness` beantwortet und alles andere, auch `/notify`, `/run` und den Health-Endpunkt mit dem letzten Lauf, mit 404. `management.server.port` und `management.server.address` verhindern jetzt den Start mit einer Meldung, die den Grund nennt.
+- **Mit schreibgeschütztem Root-Dateisystem startete das Image nicht**, und die Dokumentation sagte nicht, warum: Der eingebettete Tomcat legt sein Arbeitsverzeichnis unter `/tmp` an. [Betrieb](docs/betrieb.md#das-image) nennt jetzt das beschreibbare `/tmp` (tmpfs, in Kubernetes ein `emptyDir`); der Rauchtest der CI startet das Image auf beiden Plattformen mit `--read-only`, `--tmpfs /tmp`, `--cap-drop ALL` und `--security-opt no-new-privileges`.
+- Dokumentation: README und [Betrieb](docs/betrieb.md) sagten, ein veröffentlichtes Image gebe es erst mit dem ersten Release. Neu ist ein Beispiel für Kubernetes mit Bankbote als Container neben dem Hibiscus Server, mit Konfigurationsdatei, Geheimnissen als Dateien, der Liste der Konten aus Umgebungsvariablen, `/tmp` und Proben, und der Hinweis, dass Spring eine Liste wie `bankbote.accounts` ganz aus einer Quelle bindet, sodass IBAN und Ziel eines Kontos aus derselben Quelle kommen müssen.
+
 ## [0.1.0] - 2026-11-28
 
 ### Hinzugefügt

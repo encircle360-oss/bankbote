@@ -13,7 +13,7 @@
 | `src/test/java/com/encircle360/oss/bankbote/testing/` | nachgebaute Server: `FakeHttpServer` (HTTP und HTTPS des JDK), `FakeHibiscus` (JSON-Beans mit eigenem Zertifikat und Master-Passwort), `FakeErpNext` (Bankkonten und Bankumsätze der REST-API mit Token), `FakeSource` (Quelle im Speicher), `TestCertificate` (selbst signierte Zertifikate mit `keytool`, nur im temporären Verzeichnis) |
 | `Containerfile`, `.dockerignore` | natives Image mit GraalVM, Laufzeit auf distroless |
 | `.github/workflows/` | CI, siehe unten |
-| `.github/scripts/smoke-test.sh` | Rauchtest des Images |
+| `.github/scripts/smoke-test.sh` | Rauchtest des Images: gehärtet, mit eingehängter `application.yaml` ohne Argumente, Probe-Port von außerhalb des Containers, Start ohne und mit fehlerhafter Konfiguration |
 | `docs/` | Dokumentation |
 
 ## Einrichtung
@@ -26,7 +26,7 @@ Nötig ist ein JDK 25. Gradle kommt über den Wrapper (`./gradlew`), dessen Vert
 ./gradlew bootRun --args='--spring.config.additional-location=file:./local/'   # runs against a local configuration
 ```
 
-Das native Image baut nur die CI, im Container. Lokal geht es mit `docker build -f Containerfile -t bankbote .`, braucht aber mehrere GB Arbeitsspeicher und einige Minuten.
+Das native Image baut nur die CI, im Container. Lokal geht es mit `docker build -f Containerfile -t bankbote .`, braucht aber mehrere GB Arbeitsspeicher und einige Minuten; danach prüft `.github/scripts/smoke-test.sh bankbote` es wie die CI (braucht `docker`, `curl` und `openssl`).
 
 pre-commit läuft wie in den anderen Projekten:
 
@@ -54,6 +54,7 @@ Die Tests laufen auf der JVM und nur gegen Server auf `127.0.0.1`, die sie selbs
 | `ConfigurationCheckTest`, `StartupFailureTest`, `BankboteConfigurationTest` | jede Regel der Konfiguration und der Start mit falscher Zuordnung |
 | `BankboteServiceTest` | der ganze Dienst gegen `FakeHibiscus` und drei `FakeErpNext`, mit Benachrichtigung, Health und Log ohne Geheimnisse und persönliche Daten |
 | `ReportsTest`, `DeliveryHealthIndicatorTest`, `TriggerControllerTest` | Zusammenfassung, Log, Health, Endpunkte nur von Loopback |
+| `ProbePortTest` | der Probe-Port beantwortet nur `GET` und `HEAD` von Liveness und Readiness mit dem Status allein, auch nach einem gescheiterten Lauf, und alles andere mit 404; der Hauptport behält alles; ein fehlerhafter Probe-Port und ein eigener Management-Server verhindern den Start |
 
 Was nur gegen einen echten Hibiscus Server und ein echtes ERPNext geprüft werden kann, steht im [README](../README.md#was-getestet-ist-und-was-nicht) und in [Betrieb](betrieb.md#der-dienstbenutzer-in-erpnext).
 
@@ -97,7 +98,7 @@ BANKBOTE_IMAGE_HIBISCUS_SERVER=hibiscus-server:local ./gradlew hibiscusTest
 | `integration.yml` | `./gradlew hibiscusTest` in jedem Pull Request, auf `main` und wöchentlich: die Suite braucht etwa eine Minute, und der wöchentliche Lauf bemerkt Änderungen an Images oder Runner zwischen den Pull Requests |
 | `linters.yml` | pre-commit: Dateihygiene, `shellcheck`, `hadolint`, `zizmor`, Spotless |
 | `security.yml` | `gitleaks` über die ganze Historie, `zizmor`, Trivy über die Bibliotheken des ausführbaren Jars, CodeQL |
-| `image.yml` | natives Image und Container für `linux/amd64` und `linux/arm64` auf eigenen Runnern, Rauchtest mit erfundenen Zugangsdaten; veröffentlicht nur, wenn `release.yml` es aufruft |
+| `image.yml` | natives Image und Container für `linux/amd64` und `linux/arm64` auf eigenen Runnern, Rauchtest mit erfundenen Zugangsdaten, gehärtet und mit Probe-Port; veröffentlicht nur, wenn `release.yml` es aufruft |
 | `release.yml` | bei einem Tag `vX.Y.Z`: prüft Tag gegen `version` in `build.gradle.kts` und `CHANGELOG.md`, veröffentlicht `ghcr.io/encircle360-oss/bankbote:X.Y.Z` und `:X.Y` mit SBOM und Provenienz und legt das GitHub-Release mit dem Abschnitt aus dem Changelog an |
 
 Alle Actions sind per Commit-SHA mit der Version als Kommentar gepinnt, die Basis-Images und die Images der Integrationstests per Digest, Gradle per SHA-256 der Verteilung, die Plugins und Bibliotheken exakt (die Bibliotheken über die BOM von Spring Boot). Dependabot schlägt wöchentlich Updates vor, mit sieben Tagen Wartezeit.

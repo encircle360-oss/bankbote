@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "com.encircle360.oss"
-version = "0.2.0-SNAPSHOT"
+version = "0.1.1"
 
 java {
     toolchain {

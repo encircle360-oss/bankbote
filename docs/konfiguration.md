@@ -1,6 +1,21 @@
 # Konfiguration
 
-Bankbote liest seine Konfiguration wie jede Spring-Boot-Anwendung: aus `/config/application.yaml` im Container (Spring lädt `./config/` im Arbeitsverzeichnis `/` von selbst), aus Umgebungsvariablen wie `BANKBOTE_LOOKBACK_DAYS=30` oder aus `--bankbote.…=…` beim Start. Geheimnisse gehören nie in die Konfiguration, in Umgebungsvariablen oder auf die Kommandozeile, sondern in Dateien, deren Pfade die Konfiguration nennt.
+Bankbote liest seine Konfiguration wie jede Spring-Boot-Anwendung, aus drei Quellen, von der niedrigsten zur höchsten:
+
+1. aus `/config/application.yaml` im Container. Das Image läuft im Arbeitsverzeichnis `/`, und Spring lädt `./config/application.yaml` des Arbeitsverzeichnisses von selbst, ohne Argument. Die Datei ist optional; fehlt sie, startet Bankbote bis zur Prüfung der Konfiguration und nennt, was fehlt;
+2. aus Umgebungsvariablen wie `BANKBOTE_LOOKBACK_DAYS=30`;
+3. aus `--bankbote.…=…` beim Start.
+
+Eine höhere Quelle überschreibt einen einzelnen Schlüssel einer niedrigeren. **Listen** wie `bankbote.targets` und `bankbote.accounts` überschreibt sie dagegen ganz: Spring bindet eine Liste vollständig aus der höchsten Quelle, die einen ihrer Einträge nennt, und mischt nicht. IBAN und Ziel eines Kontos müssen deshalb aus derselben Quelle kommen; am einfachsten steht jede Liste ganz in der Datei oder ganz in Umgebungsvariablen:
+
+```bash
+BANKBOTE_ACCOUNTS_0_IBAN=DE17123456780000000001
+BANKBOTE_ACCOUNTS_0_TARGET=unternehmen-a
+BANKBOTE_ACCOUNTS_1_IBAN=DE60123456780000000003
+BANKBOTE_ACCOUNTS_1_TARGET=unternehmen-b
+```
+
+Geheimnisse gehören nie in die Konfiguration, in Umgebungsvariablen oder auf die Kommandozeile, sondern in Dateien, deren Pfade die Konfiguration nennt.
 
 ## Prüfung beim Start
 
@@ -23,7 +38,7 @@ Action:
 Correct the configuration under bankbote.*; every key is described in docs/konfiguration.md.
 ```
 
-Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer Datei.
+Die Meldungen nennen Schlüssel, Pfade und maskierte IBANs, nie den Inhalt einer Datei. Fehler am Probe-Port und ein gesetzter `management.server.*` werden schon geprüft, bevor der Server angelegt wird, und erscheinen deshalb für sich, vor den übrigen.
 
 ## Allgemein
 
@@ -106,11 +121,13 @@ Unternehmen A bekommt die Umsätze der ersten beiden Konten, Unternehmen B die d
 
 ## Server und Health
 
-Diese Schlüssel sind die von Spring Boot; die Vorgaben stehen in `src/main/resources/application.yaml`.
+Die ersten drei Schlüssel sind die von Spring Boot; die Vorgaben stehen in `src/main/resources/application.yaml`.
 
-| Schlüssel | Vorgabe | Bedeutung |
+| Schlüssel | Vorgabe | Bedeutung und Prüfung |
 |---|---|---|
 | `server.address` | `127.0.0.1` | Bankbote lauscht nur auf Loopback, siehe [Sicherheit](sicherheit.md#die-endpunkte) |
 | `server.port` | `8089` | Port für `/notify`, `/run` und `/actuator/health` |
-| `management.endpoint.health.show-details` | `always` | der letzte Lauf im Health-Endpunkt; enthält keine Geheimnisse und keine persönlichen Daten |
-| `management.server.address`, `management.server.port` | – | eigener Port für den Health-Endpunkt, etwa für Proben von außerhalb des Namespaces, siehe [Betrieb](betrieb.md#health-und-log) |
+| `management.endpoint.health.show-details` | `always` | der letzte Lauf im Health-Endpunkt; enthält keine Geheimnisse und keine persönlichen Daten. Die Proben `liveness` und `readiness` zeigen davon nichts, nur ihren Status |
+| `bankbote.probes.port` | – | schaltet den Probe-Port ein, der nur `GET` und `HEAD` von `/actuator/health/liveness` und `/actuator/health/readiness` beantwortet, siehe [Proben](betrieb.md#proben). 1 bis 65535, nicht gleich `server.port` |
+| `bankbote.probes.address` | alle Adressen | IP-Adresse, auf der der Probe-Port lauscht, etwa `0.0.0.0` oder `::`. Nur eine IP-Adresse, kein Name; nur zusammen mit `bankbote.probes.port` |
+| `management.server.port`, `management.server.address` | – | **nicht unterstützt**; Bankbote startet damit nicht. Das native Image ist ohne eigenen Management-Server gebaut, siehe [Proben](betrieb.md#proben) |
