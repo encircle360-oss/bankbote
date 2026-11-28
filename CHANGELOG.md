@@ -4,6 +4,18 @@ Alle nennenswerten Änderungen an Bankbote stehen in dieser Datei. Das Format fo
 
 ## Unveröffentlicht
 
+### Geändert
+
+- **Neue `transaction_id`, nicht kompatibel mit 0.1.x.** Die Kennung war `<source-key>:<ID im Hibiscus Server>`, ein Zähler der Datenbank des Servers: Eine neu aufgebaute Datenbank oder ein gelöschtes und neu abgerufenes Konto gab denselben Umsätzen neue IDs und damit Dubletten in ERPNext, und weil eine neue Datenbank wieder ab 1 zählt, konnte ein neuer Umsatz die Kennung eines älteren tragen und wurde als vorhanden übersprungen. Jetzt folgt sie aus dem Umsatz: `b1-r-<Hash>-<n>` aus Konto, Buchungstag, Betrag und der Transaktions-ID der Bank (`txid`), wenn die Bank eine liefert, sonst `b1-c-<Hash>-<n>` aus Konto, Buchungstag, Valuta, Betrag, Gegenkonto und Verwendungszweck; `<n>` nummeriert gleiche Umsätze eines Tages. Die genaue Form mit Beispielen steht unter [Architektur](docs/architektur.md#die-kennung-transaction_id).
+- **Update von 0.1.x:** 0.2.0 erkennt die Kennungen von 0.1.x nicht wieder. Der erste Lauf nach dem Update liefert die Umsätze im Fenster ein zweites Mal. Wer das nicht will, löscht vor dem Update in ERPNext die Bankumsätze von Bankbote aus dem Fenster oder löscht danach die Dubletten, siehe [Betrieb](docs/betrieb.md#von-01x-auf-020).
+- `bankbote.source-key` hat keine Wirkung mehr. Eine Konfiguration, die ihn setzt, startet weiter, mit einer Warnung im Log; der Schlüssel kann entfernt werden.
+- Bankbote fragt den Hibiscus Server nach drei Tagen mehr als dem Fenster statt einem: Der Server schneidet nach `n` mal 24 Stunden in seiner eigenen Zeitzone, und nur so ist der erste Tag des Fensters vollständig, was die laufenden Nummern brauchen. Belege unter [Hibiscus Server](docs/hibiscus.md#welche-schnittstelle-bankbote-liest).
+
+### Hinzugefügt
+
+- Valuta (`valuta`) und Transaktions-ID der Bank (`txid`) werden gelesen.
+- Die Zusammenfassung je Konto zählt, wie viele gebuchte Umsätze eine Transaktions-ID der Bank tragen (`with bank id` im Log, `withBankId` im Health-Endpunkt). Vergibt eine Bank eine ID für Umsätze verschiedenen Inhalts, liefert Bankbote sie mit laufenden Nummern und nennt ihre Anzahl einmal je Lauf und Konto im Log.
+
 ## [0.1.1] - 2026-11-28
 
 ### Behoben
